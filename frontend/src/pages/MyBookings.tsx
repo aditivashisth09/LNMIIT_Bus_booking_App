@@ -1,9 +1,11 @@
+// frontend/src/pages/MyBookings.tsx
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Bus, Calendar, MapPin, Clock, Ticket, Trash2, History } from 'lucide-react'; // Added History icon
+import { ArrowLeft, Bus, Calendar, MapPin, Clock, Ticket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import lnmiitLogo from '@/assets/lnmiit-logo.png';
 import apiFetch from '@/lib/api';
@@ -21,16 +23,20 @@ import {
 } from "@/components/ui/alert-dialog"
 
 interface Booking {
-  _id: string; // Changed from id to _id
+  _id: string;
   busNumber: string;
   route: string;
   seatNumber: number;
   departureTime: string;
-  bookingDate: string;
-  status: 'confirmed' | 'cancelled' | 'attended' | 'absent'; // UPDATED
+  bookingDate: string; // Creation timestamp
+  travelDate?: string;  // Optional because old data might miss it
+  status: 'confirmed' | 'cancelled' | 'attended' | 'absent';
+  bus?: {
+    arrivalTime: string;
+  };
 }
 
-// Helper to convert time string (e.g., '09:00 AM') into minutes for comparison
+// Helper to convert time string to minutes
 const parseTime = (timeStr: string): number => {
     if (!timeStr) return 0;
     const parts = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
@@ -40,46 +46,61 @@ const parseTime = (timeStr: string): number => {
     const minutes = parseInt(parts[2]);
     const modifier = parts[3].toUpperCase();
 
-    if (modifier === 'PM' && hours !== 12) {
-        hours += 12;
-    }
-    if (modifier === 'AM' && hours === 12) {
-        hours = 0;
-    }
+    if (modifier === 'PM' && hours !== 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
     return hours * 60 + minutes;
 };
 
-// Helper to check if a booking is in the future (or very near future)
 const isUpcoming = (booking: Booking): boolean => {
+    // --- CRITICAL FIX: Handle missing travelDate (Old Data) ---
+    if (!booking.travelDate) {
+        // If travelDate is missing, fall back to bookingDate or treat as past
+        const bDate = new Date(booking.bookingDate);
+        const now = new Date();
+        // If booking was created in the past (before today), show in history
+        return bDate.setHours(0,0,0,0) >= now.setHours(0,0,0,0);
+    }
+    // ----------------------------------------------------------
+
     const today = new Date();
-    // Normalize date to remove time component for simple date comparison
-    const bookingDate = new Date(booking.bookingDate);
-    bookingDate.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
+    const nowMinutes = (today.getHours() * 60) + today.getMinutes();
 
-    if (bookingDate > today) {
-        return true; // Booking is on a future day
-    }
+    // Parse Travel Date (YYYY-MM-DD)
+    const tripDateParts = booking.travelDate.split('-');
+    const tripDate = new Date(
+        parseInt(tripDateParts[0]), 
+        parseInt(tripDateParts[1]) - 1, 
+        parseInt(tripDateParts[2])
+    );
+
+    const todayZero = new Date(today); todayZero.setHours(0,0,0,0);
     
-    if (bookingDate.getTime() === today.getTime()) {
-        // If it's today, compare times (in minutes)
-        const nowMinutes = (new Date().getHours() * 60) + new Date().getMinutes();
-        const departureMinutes = parseTime(booking.departureTime);
-        // Consider upcoming if departure is at least 30 minutes in the future
-        return departureMinutes - nowMinutes > 30; 
+    // 1. If trip is in future days -> Upcoming
+    if (tripDate.getTime() > todayZero.getTime()) return true;
+    
+    // 2. If trip was in past days -> Past
+    if (tripDate.getTime() < todayZero.getTime()) return false;
+
+    // 3. If trip is TODAY
+    // It is "Current" until the BUS ARRIVES at destination.
+    if (booking.bus?.arrivalTime) {
+        const arrivalMinutes = parseTime(booking.bus.arrivalTime);
+        // Current if Now <= Arrival Time
+        return nowMinutes <= arrivalMinutes;
     }
 
-    return false;
+    // Fallback if arrivalTime missing: Use Departure + Buffer (e.g. 1 hour)
+    const departureMinutes = parseTime(booking.departureTime);
+    return nowMinutes <= (departureMinutes + 60); 
 }
 
 const MyBookings = () => {
   const navigate = useNavigate();
-  const [allBookings, setAllBookings] = useState<Booking[]>([]); // Stores ALL fetched data
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [displayedBookings, setDisplayedBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [view, setView] = useState<'current' | 'past'>('current'); // NEW STATE: Default to 'current'
+  const [view, setView] = useState<'current' | 'past'>('current');
 
-  // Helper function to render status badges
   const getStatusBadge = (status: Booking['status']) => {
     switch (status) {
       case 'confirmed':
@@ -91,33 +112,29 @@ const MyBookings = () => {
       case 'cancelled':
         return <Badge variant="secondary" className="bg-gray-500 hover:bg-gray-600">Cancelled</Badge>;
       default:
-        return <Badge variant="secondary">Unknown Status</Badge>;
+        return <Badge variant="secondary">Unknown</Badge>;
     }
   };
 
   const filterBookings = (bookings: Booking[], currentView: 'current' | 'past') => {
-      // Sort all bookings by date/time (most recent first)
       const sortedBookings = [...bookings].sort((a, b) => 
           new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime()
       );
       
-      // Filter based on selected view
       if (currentView === 'current') {
-          // Show upcoming 'confirmed' bookings only.
+          // Show active trips that are CONFIRMED
           return sortedBookings.filter(b => isUpcoming(b) && b.status === 'confirmed');
       } else {
-          // Show past trips: everything NOT upcoming, including cancelled ones.
-          return sortedBookings.filter(b => !isUpcoming(b));
+          // Show past trips OR cancelled trips
+          return sortedBookings.filter(b => !isUpcoming(b) || b.status !== 'confirmed');
       }
   }
 
   const fetchBookings = async () => {
     setIsLoading(true);
     try {
-      // The backend fetches ALL bookings for the user.
       const data: Booking[] = await apiFetch('/bookings/mybookings');
       setAllBookings(data);
-      // Initialize displayed bookings based on default view ('current')
       setDisplayedBookings(filterBookings(data, 'current')); 
     } catch (error: any) {
       toast.error(`Failed to fetch bookings: ${error.message}`);
@@ -126,34 +143,29 @@ const MyBookings = () => {
     }
   };
   
-  // Effect to handle initial fetch
   useEffect(() => {
     fetchBookings();
   }, []);
 
-  // Effect to re-filter when allBookings or view changes
   useEffect(() => {
       setDisplayedBookings(filterBookings(allBookings, view));
   }, [view, allBookings]);
 
   const handleCancelBooking = async (id: string) => {
     try {
-      await apiFetch(`/bookings/${id}`, {
-        method: 'DELETE',
-      });
+      await apiFetch(`/bookings/${id}`, { method: 'DELETE' });
       toast.success('Booking cancelled successfully!');
-      fetchBookings(); // Refresh the list
+      fetchBookings();
     } catch (error: any) {
       toast.error(`Failed to cancel booking: ${error.message}`);
     }
   };
 
-  // Filter for only 'confirmed' bookings to count active ones for the badge
+  // Calculate active bookings count based on "Current" criteria
   const activeBookingsCount = allBookings.filter(b => b.status === 'confirmed' && isUpcoming(b)).length;
   
-  // Custom message for the content based on the view
   const contentMessage = view === 'current'
-    ? "Your upcoming confirmed reservations. You can cancel these before the deadline."
+    ? "Your upcoming confirmed reservations. Moves to history after arrival time."
     : "Your trip history, including past attendances, absences, and cancelled bookings.";
 
   return (
@@ -182,7 +194,6 @@ const MyBookings = () => {
                     </CardDescription>
                   </div>
                 </div>
-                {/* Badge showing current count */}
                 <Badge className="text-lg px-4 py-2">
                   {view === 'current' ? `${activeBookingsCount} Active` : 'History'}
                 </Badge>
@@ -191,7 +202,6 @@ const MyBookings = () => {
           </Card>
         </div>
         
-        {/* --- VIEW TOGGLE BUTTONS (Current/Past) --- */}
         <div className="flex mb-6 rounded-lg bg-muted/50 p-1 w-full max-w-sm mx-auto">
             <Button
                 variant={view === 'current' ? 'default' : 'ghost'}
@@ -208,14 +218,11 @@ const MyBookings = () => {
                 Past Trips
             </Button>
         </div>
-        {/* --- END VIEW TOGGLE BUTTONS --- */}
 
-        {/* Info Message based on view */}
         <p className="text-sm text-muted-foreground text-center mb-4">
             {contentMessage}
         </p>
 
-        {/* Bookings List */}
         <div className="space-y-4">
           {isLoading ? (
             <>
@@ -226,7 +233,6 @@ const MyBookings = () => {
             displayedBookings.map((booking) => {
                 const isCancellable = booking.status === 'confirmed' && view === 'current';
                 
-                // Determine card appearance based on status
                 let cardColor = '';
                 if (booking.status === 'confirmed') cardColor = '#2563EB';
                 if (booking.status === 'attended') cardColor = '#16A34A';
@@ -235,7 +241,6 @@ const MyBookings = () => {
 
                 const cardStyle = {
                     opacity: isCancellable || view === 'past' ? 1 : 0.7,
-                    pointerEvents: isCancellable ? 'auto' : 'none', 
                 };
 
                 return (
@@ -244,10 +249,7 @@ const MyBookings = () => {
                         className="overflow-hidden transition-shadow"
                         style={cardStyle}
                     >
-                        {/* --- Dynamic Card Border Color based on Status --- */}
-                        <div className="h-2" style={{
-                            backgroundColor: cardColor
-                        }} />
+                        <div className="h-2" style={{ backgroundColor: cardColor }} />
                         <CardContent className="pt-6">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
@@ -271,7 +273,6 @@ const MyBookings = () => {
                                             <p className="font-bold text-lg">{booking.seatNumber}</p>
                                         </div>
                                     </div>
-
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-primary" />
                                         <div>
@@ -285,22 +286,24 @@ const MyBookings = () => {
                                     <div className="flex items-center gap-2">
                                         <Clock className="h-4 w-4 text-accent" />
                                         <div>
-                                            <p className="text-sm text-muted-foreground">Departure Time</p>
-                                            <p className="font-bold text-accent">{booking.departureTime}</p>
+                                            <p className="text-sm text-muted-foreground">Schedule</p>
+                                            <p className="font-bold text-accent">
+                                                {booking.departureTime} 
+                                                {booking.bus?.arrivalTime && ` - ${booking.bus.arrivalTime}`}
+                                            </p>
                                         </div>
                                     </div>
-
                                     <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4 text-accent" />
                                         <div>
-                                            <p className="text-sm text-muted-foreground">Booking Date</p>
+                                            <p className="text-sm text-muted-foreground">Travel Date</p>
                                             <p className="font-semibold">
-                                                {new Date(booking.bookingDate).toLocaleDateString('en-US', {
+                                                {booking.travelDate ? new Date(booking.travelDate).toLocaleDateString('en-US', {
                                                     weekday: 'short',
                                                     year: 'numeric',
                                                     month: 'short',
                                                     day: 'numeric'
-                                                })}
+                                                }) : new Date(booking.bookingDate).toLocaleDateString()}
                                             </p>
                                         </div>
                                     </div>
@@ -319,7 +322,6 @@ const MyBookings = () => {
                                     View Timetable
                                 </Button>
                                 
-                                {/* --- CONDITIONAL CANCEL BUTTON (Only for Confirmed/Current bookings) --- */}
                                 {isCancellable && (
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
@@ -332,13 +334,13 @@ const MyBookings = () => {
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This will permanently cancel your booking for seat {booking.seatNumber} on bus {booking.busNumber}. This action cannot be undone.
+                                                    This will cancel your seat {booking.seatNumber}. This action cannot be undone.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>Back</AlertDialogCancel>
                                                 <AlertDialogAction onClick={() => handleCancelBooking(booking._id)}>
-                                                    Yes, Cancel Booking
+                                                    Yes, Cancel
                                                 </AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
@@ -346,19 +348,11 @@ const MyBookings = () => {
                                 )}
                             </div>
                             
-                            {/* --- CONDITIONAL MESSAGE --- */}
                             {booking.status === 'confirmed' ? (
                                 <p className="text-xs text-muted-foreground text-center mt-3">
                                     Cancellation allowed up to 30 minutes before departure
                                 </p>
-                            ) : (
-                                <p className="text-xs text-muted-foreground text-center mt-3 font-semibold"
-                                    style={{ color: booking.status === 'absent' ? '#DC2626' : (booking.status === 'attended' ? '#16A34A' : '#A0A0A0') }}
-                                >
-                                    {booking.status === 'cancelled' ? 'This booking was cancelled.' : `Attendance marked as ${booking.status}.`}
-                                </p>
-                            )}
-                        
+                            ) : null}
                         </CardContent>
                     </Card>
                 );
@@ -369,7 +363,7 @@ const MyBookings = () => {
                 <Bus className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-xl font-bold mb-2">No Bookings Found</h3>
                 <p className="text-muted-foreground mb-6">
-                  {view === 'current' ? `You have no upcoming confirmed trips (Active: ${activeBookingsCount}).` : "Your recorded trip history is empty for past dates."}
+                  {view === 'current' ? `You have no active trips.` : "Your trip history is empty."}
                 </p>
                 <Button 
                   onClick={() => navigate('/student-dashboard')}

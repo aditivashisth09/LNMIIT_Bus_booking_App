@@ -2,31 +2,28 @@ import asyncHandler from 'express-async-handler';
 import User from '../models/userModel.js';
 import generateToken from '../utils/generateToken.js';
 
-// --- NEW ---
-// This is the secret code conductors must enter to sign up.
-// !! ADD THIS to your .env file in the Backend folder !!
-// e.g., CONDUCTOR_PASSCODE=LNMIIT_BUS_STAFF_123
+// Default passcodes if .env is empty
 const CONDUCTOR_PASSCODE = process.env.CONDUCTOR_PASSCODE || 'LNMIIT_CONDUCTOR_2025';
-// --- END NEW ---
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'LNMIIT_ADMIN_2025';
 
-// @desc    Register a new user (Student, Admin, or Conductor)
+// @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-  // UPDATED: Destructure all possible fields from your new forms
   const {
     name,
-    email,
-    phone,
+    email, // Compulsory for all
+    phone, // Compulsory for all
     password,
     confirmPassword,
-    role, // This will be 'student' or 'conductor'
+    role, 
     passcode,
   } = req.body;
 
-  if (!name || !password || !confirmPassword) {
+  // Validation
+  if (!name || !password || !confirmPassword || !phone || !email) {
     res.status(400);
-    throw new Error('Please fill in name and password fields');
+    throw new Error('Please fill in all fields including Email and Phone Number');
   }
 
   if (password !== confirmPassword) {
@@ -34,48 +31,47 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new Error('Passwords do not match');
   }
 
-  // Check if user exists by email (if provided)
-  if (email) {
-    const emailExists = await User.findOne({ email });
-    if (emailExists) {
-      res.status(400);
-      throw new Error('User with this email already exists');
-    }
-  }
-  // Check if user exists by phone (if provided)
-  if (phone) {
-    const phoneExists = await User.findOne({ phone });
-    if (phoneExists) {
-      res.status(400);
-      throw new Error('User with this phone number already exists');
-    }
+  // Check existing user by phone
+  const phoneExists = await User.findOne({ phone });
+  if (phoneExists) {
+    res.status(400);
+    throw new Error('User with this phone number already exists');
   }
 
-  let userRole = role || 'student'; // Default to student
+  // Check existing user by email
+  const emailExists = await User.findOne({ email });
+  if (emailExists) {
+    res.status(400);
+    throw new Error('User with this email already exists');
+  }
 
-  // --- Role-specific logic ---
+  let userRole = role || 'student'; 
+
+  // --- PASSCODE VERIFICATION LOGIC ---
   if (userRole === 'conductor') {
-    // 1. Check for the passcode
-    if (passcode !== CONDUCTOR_PASSCODE) {
+    // Compare trimmed versions
+    if (!passcode || passcode.trim() !== CONDUCTOR_PASSCODE) {
       res.status(401);
-      throw new Error('Invalid Conductor Passcode. Registration failed.');
+      throw new Error('Invalid Conductor Passcode.');
     }
-    // 2. The 'userModel' will enforce that 'phone' is present
+  } else if (userRole === 'admin') {
+    // Compare trimmed versions
+    if (!passcode || passcode.trim() !== ADMIN_PASSCODE) {
+      res.status(401);
+      throw new Error('Invalid Admin Passcode.');
+    }
   } else {
-    // Auto-assign admin role if email matches
+    // Students validation (implicit admin promotion via email)
     if (email === 'admin@lnmiit.ac.in') {
       userRole = 'admin';
     }
-    // 3. The 'userModel' will enforce that 'email' is present and valid
   }
-  // --- End role logic ---
+  // --- END LOGIC ---
 
-  // Create user
-  // The userModel 'pre' hook will validate the required fields
   const user = await User.create({
     name,
-    email: email || null,
-    phone: phone || null,
+    email, // Saved for everyone
+    phone, // Saved for everyone
     password,
     role: userRole,
   });
@@ -99,7 +95,6 @@ const registerUser = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = asyncHandler(async (req, res) => {
-  // UPDATED: 'loginId' can be either email or phone
   const { loginId, password } = req.body;
 
   if (!loginId || !password) {
@@ -120,7 +115,7 @@ const loginUser = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      phone: user.phone, // Send phone to frontend
+      phone: user.phone,
       role: user.role,
       token: generateToken(user._id, user.role),
     });

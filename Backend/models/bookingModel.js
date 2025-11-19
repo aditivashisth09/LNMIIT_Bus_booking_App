@@ -28,13 +28,18 @@ const bookingSchema = mongoose.Schema(
       type: String,
       required: true,
     },
+    // --- NEW: Track the actual travel date (e.g., "2025-11-20") ---
+    travelDate: {
+      type: String, 
+      required: true,
+    },
     bookingDate: {
       type: Date,
       default: Date.now,
     },
     status: {
       type: String,
-      enum: ['confirmed', 'cancelled', 'attended', 'absent'], // UPDATED
+      enum: ['confirmed', 'cancelled', 'attended', 'absent'],
       default: 'confirmed',
     },
   },
@@ -43,10 +48,13 @@ const bookingSchema = mongoose.Schema(
   }
 );
 
-// Ensure a seat is booked only once per bus for a given departure
-// A more complex system would also check for date
-bookingSchema.index({ bus: 1, seatNumber: 1, departureTime: 1 }, { unique: true, partialFilterExpression: { status: 'confirmed' } });
-
+// --- UPDATED INDEX ---
+// Ensure a seat on a specific bus is only booked once PER DATE
+// We added 'travelDate' to the uniqueness check
+bookingSchema.index(
+  { bus: 1, seatNumber: 1, departureTime: 1, travelDate: 1 }, 
+  { unique: true, partialFilterExpression: { status: 'confirmed' } }
+);
 
 const Booking = mongoose.model('Booking', bookingSchema);
 

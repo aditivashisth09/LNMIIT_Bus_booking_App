@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-// UPDATED: Added ArrowLeft and Key icons
 import { Mail, Lock, User, Shield, Phone, Key, ArrowLeft } from 'lucide-react'; 
 import { toast } from 'sonner';
 import lnmiitLogo from '@/assets/lnmiit-logo.png';
@@ -16,40 +15,38 @@ const Index = () => {
   const navigate = useNavigate();
   const { saveAuth } = useAuth();
   
-  // --- NEW STATE ---
-  // This state controls which portal (Student, Admin, Conductor) is active
   const [userType, setUserType] = useState<'student' | 'admin' | 'conductor'>('student');
-  // --- END NEW STATE ---
-
   const [activeTab, setActiveTab] = useState('login');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Login form state (shared by all user types)
+  // Login form state
   const [loginId, setLoginId] = useState(''); 
   const [loginPassword, setLoginPassword] = useState('');
 
   // Student Signup form state
   const [studentName, setStudentName] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
+  const [studentPhone, setStudentPhone] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
   const [studentConfirmPassword, setStudentConfirmPassword] = useState('');
 
   // Conductor Signup form state
   const [conductorName, setConductorName] = useState('');
+  const [conductorEmail, setConductorEmail] = useState(''); // NEW: Conductor Email
   const [conductorPhone, setConductorPhone] = useState('');
   const [conductorPassword, setConductorPassword] = useState('');
   const [conductorConfirmPassword, setConductorConfirmPassword] = useState('');
   const [conductorPasscode, setConductorPasscode] = useState('');
 
-  // --- NEW: Admin Signup form state ---
+  // Admin Signup form state
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [adminPhone, setAdminPhone] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminConfirmPassword, setAdminConfirmPassword] = useState('');
-  // --- END NEW STATE ---
+  const [adminPasscode, setAdminPasscode] = useState('');
 
-
-  // --- GENERIC LOGIN HANDLER (for all roles) ---
+  // --- LOGIN HANDLER ---
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -69,7 +66,6 @@ const Index = () => {
       saveAuth(data);
       toast.success('Login successful!');
       
-      // The backend provides the role, so we can redirect correctly
       if (data.role === 'admin') {
         navigate('/admin-dashboard');
       } else if (data.role === 'conductor') {
@@ -84,12 +80,12 @@ const Index = () => {
     }
   };
 
-  // --- STUDENT SIGNUP HANDLER ---
+  // --- STUDENT SIGNUP ---
   const handleStudentSignup = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    if (!studentName || !studentEmail || !studentPassword || !studentConfirmPassword) {
+    if (!studentName || !studentEmail || !studentPhone || !studentPassword || !studentConfirmPassword) {
       toast.error('Please fill in all fields');
       setIsLoading(false);
       return;
@@ -106,6 +102,7 @@ const Index = () => {
         body: {
           name: studentName,
           email: studentEmail,
+          phone: studentPhone,
           password: studentPassword,
           confirmPassword: studentConfirmPassword,
           role: 'student',
@@ -113,7 +110,7 @@ const Index = () => {
       });
 
       toast.success('Student Account created successfully! Please login.');
-      setActiveTab('login'); // Switch to login tab
+      setActiveTab('login'); 
       setLoginId(studentEmail);
       setLoginPassword('');
     } catch (error: any) {
@@ -123,14 +120,13 @@ const Index = () => {
     }
   };
 
-  // --- NEW: ADMIN SIGNUP HANDLER ---
-  // (Uses the same logic as student signup; backend assigns role based on email)
+  // --- ADMIN SIGNUP ---
   const handleAdminSignup = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
   
-    if (!adminName || !adminEmail || !adminPassword || !adminConfirmPassword) {
-      toast.error('Please fill in all fields');
+    if (!adminName || !adminEmail || !adminPhone || !adminPassword || !adminConfirmPassword || !adminPasscode) {
+      toast.error('Please fill in all fields including Admin Passcode');
       setIsLoading(false);
       return;
     }
@@ -141,16 +137,16 @@ const Index = () => {
     }
   
     try {
-      // We still send 'student' role; backend logic in authController
-      // will check the email and elevate to 'admin' if it matches.
       await apiFetch('/auth/register', {
         method: 'POST',
         body: {
           name: adminName,
           email: adminEmail,
+          phone: adminPhone,
           password: adminPassword,
           confirmPassword: adminConfirmPassword,
-          role: 'student', // Backend will elevate this to 'admin'
+          role: 'admin',
+          passcode: adminPasscode,
         },
       });
   
@@ -165,12 +161,13 @@ const Index = () => {
     }
   };
 
-  // --- CONDUCTOR SIGNUP HANDLER ---
+  // --- CONDUCTOR SIGNUP (UPDATED) ---
   const handleConductorSignup = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    if (!conductorName || !conductorPhone || !conductorPassword || !conductorConfirmPassword || !conductorPasscode) {
+    // Validation now includes email
+    if (!conductorName || !conductorEmail || !conductorPhone || !conductorPassword || !conductorConfirmPassword || !conductorPasscode) {
       toast.error('Please fill in all fields');
       setIsLoading(false);
       return;
@@ -186,7 +183,8 @@ const Index = () => {
         method: 'POST',
         body: {
           name: conductorName,
-          phone: conductorPhone, // Use phone
+          email: conductorEmail, // Send email
+          phone: conductorPhone, 
           password: conductorPassword,
           confirmPassword: conductorConfirmPassword,
           role: 'conductor',
@@ -196,7 +194,7 @@ const Index = () => {
 
       toast.success('Conductor account created! Please login.');
       setActiveTab('login');
-      setLoginId(conductorPhone); // Pre-fill login with phone
+      setLoginId(conductorPhone); // Can login with phone
       setLoginPassword('');
     } catch (error: any) {
       toast.error(error.message);
@@ -205,31 +203,29 @@ const Index = () => {
     }
   };
 
-  // --- Portal Switch Handlers ---
   const switchToAdmin = () => {
     setUserType('admin');
-    setActiveTab('login'); // Default to login tab
-    setLoginId('admin@lnmiit.ac.in'); // Pre-fill admin email
+    setActiveTab('login'); 
+    setLoginId('admin@lnmiit.ac.in'); 
     setLoginPassword('');
   };
 
   const switchToConductor = () => {
     setUserType('conductor');
-    setActiveTab('login'); // Default to login tab
-    setLoginId(''); // Clear login ID for phone number
+    setActiveTab('login'); 
+    setLoginId(''); 
     setLoginPassword('');
   };
 
   const switchToStudent = () => {
     setUserType('student');
-    setActiveTab('login'); // Default to login tab
+    setActiveTab('login'); 
     setLoginId('');
     setLoginPassword('');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-accent to-primary">
-      {/* Hero Section */}
       <div className="container mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center mb-6">
@@ -243,81 +239,35 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Auth Cards */}
         <div className="max-w-md mx-auto">
           <Card className="border-0 shadow-2xl">
             <CardHeader>
-              {/* --- DYNAMIC TITLE --- */}
-              {userType === 'student' && (
-                <>
-                  <CardTitle className="text-2xl text-center">Welcome to LNMIIT</CardTitle>
-                  <CardDescription className="text-center">
-                    Login to book your LNMIIT bus seat
-                  </CardDescription>
-                </>
-              )}
-              {userType === 'admin' && (
-                <>
-                  <CardTitle className="text-2xl text-center">Admin Portal</CardTitle>
-                  <CardDescription className="text-center">
-                    Administrator Login / Sign Up
-                  </CardDescription>
-                </>
-              )}
-              {userType === 'conductor' && (
-                <>
-                  <CardTitle className="text-2xl text-center">Conductor Portal</CardTitle>
-                  <CardDescription className="text-center">
-                    Conductor Login / Sign Up
-                  </CardDescription>
-                </>
-              )}
-              {/* --- END DYNAMIC TITLE --- */}
+              {userType === 'student' && <CardTitle className="text-2xl text-center">Welcome to LNMIIT</CardTitle>}
+              {userType === 'admin' && <CardTitle className="text-2xl text-center">Admin Portal</CardTitle>}
+              {userType === 'conductor' && <CardTitle className="text-2xl text-center">Conductor Portal</CardTitle>}
+              <CardDescription className="text-center">
+                {userType === 'student' ? 'Login to book your LNMIIT bus seat' : `${userType.charAt(0).toUpperCase() + userType.slice(1)} Login / Sign Up`}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 
-                {/* --- DYNAMIC TABS LIST --- */}
-                {userType === 'student' && (
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="login">Login</TabsTrigger>
-                    <TabsTrigger value="student_signup">Student Sign Up</TabsTrigger>
-                  </TabsList>
-                )}
-                {userType === 'admin' && (
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="login">Admin Login</TabsTrigger>
-                    <TabsTrigger value="admin_signup">Admin Sign Up</TabsTrigger>
-                  </TabsList>
-                )}
-                {userType === 'conductor' && (
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="login">Conductor Login</TabsTrigger>
-                    <TabsTrigger value="conductor_signup">Conductor Sign Up</TabsTrigger>
-                  </TabsList>
-                )}
-                {/* --- END DYNAMIC TABS LIST --- */}
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="login">Login</TabsTrigger>
+                  <TabsTrigger value={`${userType}_signup`}>Sign Up</TabsTrigger>
+                </TabsList>
 
-
-                {/* --- LOGIN FORM (SHARED) --- */}
+                {/* LOGIN FORM */}
                 <TabsContent value="login">
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="login-id">
-                        {/* Dynamic Label */}
-                        {userType === 'conductor' ? 'Phone Number' : 'Email'}
-                        {userType === 'student'} 
-                      </Label>
+                      <Label htmlFor="login-id">{userType === 'conductor' ? 'Phone Number / Email' : 'Email'}</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
                           id="login-id"
                           type="text"
-                          placeholder={
-                            userType === 'conductor' ? 'Enter your phone number' : 
-                            userType === 'admin' ? 'admin@lnmiit.ac.in' : 
-                            'student@lnmiit.ac.in'
-                          }
+                          placeholder={userType === 'conductor' ? 'Enter phone or email' : 'user@lnmiit.ac.in'}
                           className="pl-10"
                           value={loginId}
                           onChange={(e) => setLoginId(e.target.value)}
@@ -325,7 +275,6 @@ const Index = () => {
                         />
                       </div>
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="login-password">Password</Label>
                       <div className="relative">
@@ -341,335 +290,134 @@ const Index = () => {
                         />
                       </div>
                     </div>
-
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 h-11 text-base font-semibold"
-                      disabled={isLoading}
-                    >
+                    <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isLoading}>
                       {isLoading ? 'Signing In...' : 'Sign In'}
                     </Button>
 
-                    {/* --- DYNAMIC BUTTONS (Only show for students) --- */}
                     {userType === 'student' && (
                       <>
                         <div className="relative my-6">
-                          <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-border" />
-                          </div>
-                          <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-card px-2 text-muted-foreground">Or</span>
-                          </div>
+                          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+                          <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
                         </div>
-
-                        <Button 
-                          type="button"
-                          variant="outline" 
-                          className="w-full"
-                          onClick={switchToAdmin}
-                          disabled={isLoading}
-                        >
-                          <Shield className="h-4 w-4 mr-2" />
-                          Admin Portal
+                        <Button type="button" variant="outline" className="w-full" onClick={switchToAdmin} disabled={isLoading}>
+                          <Shield className="h-4 w-4 mr-2" /> Admin Portal
                         </Button>
-
-                        <Button 
-                          type="button"
-                          variant="outline" 
-                          className="w-full"
-                          onClick={switchToConductor}
-                          disabled={isLoading}
-                        >
-                          <User className="h-4 w-4 mr-2" />
-                          Conductor Portal
+                        <Button type="button" variant="outline" className="w-full mt-2" onClick={switchToConductor} disabled={isLoading}>
+                          <User className="h-4 w-4 mr-2" /> Conductor Portal
                         </Button>
                       </>
                     )}
-                    {/* --- END DYNAMIC BUTTONS --- */}
                   </form>
                 </TabsContent>
 
-                {/* --- STUDENT SIGNUP FORM --- */}
+                {/* STUDENT SIGNUP */}
                 <TabsContent value="student_signup">
                   <form onSubmit={handleStudentSignup} className="space-y-4">
-                    {/* Student name */}
                     <div className="space-y-2">
-                      <Label htmlFor="student-name">Full Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="student-name"
-                          type="text"
-                          placeholder="Student Name"
-                          className="pl-10"
-                          value={studentName}
-                          onChange={(e) => setStudentName(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Full Name</Label>
+                      <Input placeholder="Student Name" value={studentName} onChange={(e) => setStudentName(e.target.value)} />
                     </div>
-                    {/* Student email */}
                     <div className="space-y-2">
-                      <Label htmlFor="student-email">LNMIIT Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="student-email"
-                          type="email"
-                          placeholder="student@lnmiit.ac.in"
-                          className="pl-10"
-                          value={studentEmail}
-                          onChange={(e) => setStudentEmail(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Must be a valid @lnmiit.ac.in email
-                      </p>
+                      <Label>Email</Label>
+                      <Input placeholder="student@lnmiit.ac.in" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
                     </div>
-                    {/* Student password */}
                     <div className="space-y-2">
-                      <Label htmlFor="student-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="student-password"
-                          type="password"
-                          placeholder="Create password"
-                          className="pl-10"
-                          value={studentPassword}
-                          onChange={(e) => setStudentPassword(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Phone</Label>
+                      <Input placeholder="9876543210" value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} />
                     </div>
-                    {/* Student confirm password */}
                     <div className="space-y-2">
-                      <Label htmlFor="student-confirm-password">Confirm Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="student-confirm-password"
-                          type="password"
-                          placeholder="Re-enter password"
-                          className="pl-10"
-                          value={studentConfirmPassword}
-                          onChange={(e) => setStudentConfirmPassword(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Password</Label>
+                      <Input type="password" placeholder="Create password" value={studentPassword} onChange={(e) => setStudentPassword(e.target.value)} />
                     </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 h-11 text-base font-semibold"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Creating Account...' : 'Create Student Account'}
-                    </Button>
+                    <div className="space-y-2">
+                      <Label>Confirm Password</Label>
+                      <Input type="password" placeholder="Re-enter password" value={studentConfirmPassword} onChange={(e) => setStudentConfirmPassword(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full">Create Student Account</Button>
                   </form>
                 </TabsContent>
 
-                {/* --- ADMIN SIGNUP FORM (NEW) --- */}
+                {/* ADMIN SIGNUP */}
                 <TabsContent value="admin_signup">
                   <form onSubmit={handleAdminSignup} className="space-y-4">
-                    {/* Admin name */}
                     <div className="space-y-2">
-                      <Label htmlFor="admin-name">Full Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="admin-name"
-                          type="text"
-                          placeholder="Admin Name"
-                          className="pl-10"
-                          value={adminName}
-                          onChange={(e) => setAdminName(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Full Name</Label>
+                      <Input placeholder="Admin Name" value={adminName} onChange={(e) => setAdminName(e.target.value)} />
                     </div>
-                    {/* Admin email */}
                     <div className="space-y-2">
-                      <Label htmlFor="admin-email">Admin Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="admin-email"
-                          type="email"
-                          placeholder="admin@lnmiit.ac.in"
-                          className="pl-10"
-                          value={adminEmail}
-                          onChange={(e) => setAdminEmail(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Must be a valid @lnmiit.ac.in email
-                      </p>
+                      <Label>Email</Label>
+                      <Input placeholder="admin@lnmiit.ac.in" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
                     </div>
-                    {/* Admin password */}
                     <div className="space-y-2">
-                      <Label htmlFor="admin-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="admin-password"
-                          type="password"
-                          placeholder="Create password"
-                          className="pl-10"
-                          value={adminPassword}
-                          onChange={(e) => setAdminPassword(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Phone</Label>
+                      <Input placeholder="9876543210" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} />
                     </div>
-                    {/* Admin confirm password */}
                     <div className="space-y-2">
-                      <Label htmlFor="admin-confirm-password">Confirm Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="admin-confirm-password"
-                          type="password"
-                          placeholder="Re-enter password"
-                          className="pl-10"
-                          value={adminConfirmPassword}
-                          onChange={(e) => setAdminConfirmPassword(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Password</Label>
+                      <Input type="password" placeholder="Create password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
                     </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 h-11 text-base font-semibold"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Creating Account...' : 'Create Admin Account'}
-                    </Button>
-                  </form>
-                </TabsContent>
-                
-                {/* --- CONDUCTOR SIGNUP FORM --- */}
-                <TabsContent value="conductor_signup">
-                  <form onSubmit={handleConductorSignup} className="space-y-4">
-                    {/* Conductor name */}
                     <div className="space-y-2">
-                      <Label htmlFor="conductor-name">Full Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="conductor-name"
-                          type="text"
-                          placeholder="Conductor Name"
-                          className="pl-10"
-                          value={conductorName}
-                          onChange={(e) => setConductorName(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      <Label>Confirm Password</Label>
+                      <Input type="password" placeholder="Re-enter password" value={adminConfirmPassword} onChange={(e) => setAdminConfirmPassword(e.target.value)} />
                     </div>
-                    {/* Conductor phone */}
                     <div className="space-y-2">
-                      <Label htmlFor="conductor-phone">Phone Number</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="conductor-phone"
-                          type="tel"
-                          placeholder="9876543210"
-                          className="pl-10"
-                          value={conductorPhone}
-                          onChange={(e) => setConductorPhone(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
-                       <p className="text-xs text-muted-foreground">
-                        Your phone number will be your login ID.
-                      </p>
-                    </div>
-                    {/* Conductor password */}
-                    <div className="space-y-2">
-                      <Label htmlFor="conductor-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="conductor-password"
-                          type="password"
-                          placeholder="Create password"
-                          className="pl-10"
-                          value={conductorPassword}
-                          onChange={(e) => setConductorPassword(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </div>
-                    {/* Conductor confirm password */}
-                    <div className="space-y-2">
-                      <Label htmlFor="conductor-confirm-password">Confirm Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="conductor-confirm-password"
-                          type="password"
-                          placeholder="Re-enter password"
-                          className="pl-10"
-                          value={conductorConfirmPassword}
-                          onChange={(e) => setConductorConfirmPassword(e.target.value)}
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </div>
-                    {/* Conductor passcode */}
-                    <div className="space-y-2">
-                      <Label htmlFor="conductor-passcode">Conductor Passcode</Label>
+                      <Label>Admin Passcode</Label>
                       <div className="relative">
                         <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="conductor-passcode"
-                          type="password"
-                          placeholder="Enter registration passcode"
-                          className="pl-10"
-                          value={conductorPasscode}
-                          onChange={(e) => setConductorPasscode(e.target.value)}
-                          disabled={isLoading}
-                        />
+                        <Input type="password" placeholder="Enter admin registration code" className="pl-10" value={adminPasscode} onChange={(e) => setAdminPasscode(e.target.value)} />
                       </div>
                     </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 h-11 text-base font-semibold"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Creating Account...' : 'Create Conductor Account'}
-                    </Button>
+                    <Button type="submit" className="w-full">Create Admin Account</Button>
+                  </form>
+                </TabsContent>
+
+                {/* CONDUCTOR SIGNUP */}
+                <TabsContent value="conductor_signup">
+                  <form onSubmit={handleConductorSignup} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Full Name</Label>
+                      <Input placeholder="Conductor Name" value={conductorName} onChange={(e) => setConductorName(e.target.value)} />
+                    </div>
+                    {/* ADDED EMAIL FIELD */}
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input placeholder="conductor@gmail.com" value={conductorEmail} onChange={(e) => setConductorEmail(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <Input placeholder="9876543210" value={conductorPhone} onChange={(e) => setConductorPhone(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <Input type="password" placeholder="Create password" value={conductorPassword} onChange={(e) => setConductorPassword(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Confirm Password</Label>
+                      <Input type="password" placeholder="Re-enter password" value={conductorConfirmPassword} onChange={(e) => setConductorConfirmPassword(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Conductor Passcode</Label>
+                      <Input type="password" placeholder="Enter conductor registration code" value={conductorPasscode} onChange={(e) => setConductorPasscode(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full">Create Conductor Account</Button>
                   </form>
                 </TabsContent>
 
               </Tabs>
 
-              {/* --- NEW "BACK" BUTTON --- */}
               {userType !== 'student' && (
-                <Button 
-                  variant="link" 
-                  className="w-full mt-4 text-muted-foreground"
-                  onClick={switchToStudent}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Student Portal
+                <Button variant="link" className="w-full mt-4 text-muted-foreground" onClick={switchToStudent}>
+                  <ArrowLeft className="h-4 w-4 mr-2" /> Back to Student Portal
                 </Button>
               )}
-              {/* --- END "BACK" BUTTON --- */}
 
             </CardContent>
           </Card>
-
-          {/* Info Card */}
           <Card className="mt-6 bg-white/10 backdrop-blur-sm border-white/20 text-white">
             <CardContent className="pt-6">
               <div className="space-y-3 text-sm">
-                <p className="flex items-center gap-2">
-                📍Rupa ki Nangal, Post-Sumel, Via - Jamdoli, Jaipur, Rajasthan 302031
-                </p>
+                <p className="flex items-center gap-2">📍 Rupa ki Nangal, Post-Sumel, Via - Jamdoli, Jaipur, Rajasthan 302031</p>
               </div>
             </CardContent>
           </Card>
