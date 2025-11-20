@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import Bus from '../models/busModel.js';
-import Booking from '../models/bookingModel.js';
+import Booking from '../models/bookingModel.js'; 
 import User from '../models/userModel.js'; 
 import WaitingList from '../models/waitingListModel.js';
 import { jsPDF } from 'jspdf';
@@ -23,7 +23,7 @@ const parseTime = (timeStr) => {
 };
 // --- END HELPER FUNCTION ---
 
-// @desc    Get dashboard stats (Filtered by time, but keeps Assets)
+// @desc    Get dashboard stats
 // @route   GET /api/admin/stats
 // @access  Private (Admin)
 const getDashboardStats = asyncHandler(async (req, res) => {
@@ -187,36 +187,49 @@ const getHoldList = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/remove-hold/:id
 // @access  Private (Admin)
 const removeUserHold = asyncHandler(async (req, res) => {
-  const userId = req.params.id;
-  const user = await User.findById(userId);
+  try {
+    const userId = req.params.id;
+    console.log(`Attempting to remove hold for user ID: ${userId}`);
 
-  if (!user) {
-    res.status(404);
-    throw new Error('User not found');
+    const user = await User.findById(userId);
+
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    if (user.role !== 'student') {
+      res.status(400);
+      throw new Error('Only student users can be placed on hold.');
+    }
+
+    // --- FIX: Use findByIdAndUpdate to bypass "phone required" validation ---
+    await User.findByIdAndUpdate(userId, { onHold: false });
+    console.log(`User ${user.name} onHold status cleared.`);
+    // -----------------------------------------------------------------------
+
+    // Resetting the 'absent' booking count so they don't get banned immediately again.
+    if (!Booking) {
+       throw new Error("Booking model is not defined/imported!");
+    }
+
+    const updateResult = await Booking.updateMany(
+      { user: userId, status: 'absent' },
+      { $set: { status: 'attended' } }
+    );
+    
+    console.log(`Updated ${updateResult.modifiedCount} absent bookings to attended.`);
+
+    res.json({ 
+      message: `${user.name} has been removed from hold status.`,
+      userId: userId 
+    });
+
+  } catch (error) {
+    console.error("Error in removeUserHold:", error); 
+    res.status(500);
+    throw new Error(error.message || 'Server Error during hold removal');
   }
-
-  if (user.role !== 'student') {
-    res.status(400);
-    throw new Error('Only student users can be placed on hold.');
-  }
-
-  // Remove the hold status
-  user.onHold = false;
-  await user.save();
-
-  // OPTIONAL: Resetting the 'absent' booking count is a good idea to give them a clean slate.
-  // We can convert all their 'absent' bookings to 'attended' or simply 'cancelled' status 
-  // to avoid instant re-banning if a conductor marks a new booking as 'absent'.
-  // We will change their 'absent' status to 'attended' for forgiveness.
-  await Booking.updateMany(
-    { user: userId, status: 'absent' },
-    { $set: { status: 'attended' } }
-  );
-
-  res.json({ 
-    message: `${user.name} (ID: ${user.email}) has been removed from hold status.`,
-    userId: userId 
-  });
 });
 
 export { 
@@ -224,6 +237,6 @@ export {
   downloadReport, 
   getConductors, 
   getAllBusSchedules,
-  getHoldList, // NEW
-  removeUserHold // NEW
+  getHoldList, 
+  removeUserHold 
 };
