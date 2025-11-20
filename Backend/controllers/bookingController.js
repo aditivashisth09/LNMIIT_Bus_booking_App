@@ -177,8 +177,26 @@ const createBooking = asyncHandler(async (req, res) => {
     const bookingDateFormatted = formatDate(booking.bookingDate);
     await sendEmail({
       email: req.user.email,
-      subject: 'Booking Confirmation - LNMIIT Bus System',
-      message: `Dear ${req.user.name},\n\nYour booking for ${booking.route} is confirmed.\nDate: ${booking.travelDate}\nSeat: ${seatNumber}`,
+      subject: 'Booking Confirmed - LNMIIT Bus Service',
+      message: `Dear ${req.user.name},
+
+We are pleased to confirm your seat booking with LNMIIT Bus Services.
+
+Booking Details:
+------------------------------------------------------
+Bus Number    : ${booking.busNumber}
+Route         : ${booking.route}
+Seat Number   : ${seatNumber}
+Date          : ${booking.travelDate}
+Departure Time: ${booking.departureTime}
+------------------------------------------------------
+
+Please ensure you arrive at the pickup point at least 15 minutes before departure.
+
+Safe Travels!
+
+Best regards,
+LNMIIT Transport Department`,
     });
 
     res.status(201).json(booking);
@@ -224,6 +242,27 @@ const cancelBooking = asyncHandler(async (req, res) => {
      res.status(400);
      throw new Error('Cannot cancel less than 30 minutes before departure.');
   }
+
+  await sendEmail({
+    email: req.user.email,
+    subject: 'Booking Cancelled - LNMIIT Bus Service',
+    message: `Dear ${req.user.name},
+
+Your booking has been successfully cancelled as per your request.
+
+Cancelled Trip Details:
+------------------------------------------------------
+Bus Number    : ${booking.busNumber}
+Route         : ${booking.route}
+Seat Number   : ${booking.seatNumber}
+Date          : ${booking.travelDate}
+------------------------------------------------------
+
+We hope to serve you again soon.
+
+Best regards,
+LNMIIT Transport Department`,
+  });
 
   await booking.deleteOne();
   processWaitingList(booking.bus);
