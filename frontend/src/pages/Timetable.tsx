@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface BusSchedule {
-  _id: string; // Changed from id
+  _id: string;
   busNumber: string;
   route: string;
   departureTime: string;
@@ -41,17 +41,13 @@ const Timetable = () => {
     fetchTimetable();
   }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-600 hover:bg-green-700">On Time</Badge>;
-      case 'delayed':
-        return <Badge className="bg-amber-500 hover:bg-amber-600">Delayed</Badge>;
-      case 'cancelled':
-        return <Badge variant="destructive">Cancelled</Badge>;
-      default:
-        return null;
-    }
+  // Helper to convert time string to minutes for easy comparison
+  const parseTimeMinutes = (timeStr: string) => {
+    const [time, modifier] = timeStr.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (modifier === 'PM' && hours !== 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
   };
   
   const renderSchedules = (data: BusSchedule[]) => (
@@ -67,7 +63,7 @@ const Timetable = () => {
                   <Bus className="h-5 w-5 text-primary" />
                   <p className="font-bold text-lg">{schedule.busNumber}</p>
                 </div>
-                {getStatusBadge(schedule.status)}
+                {/* Status Badge Removed Here */}
               </div>
 
               {/* Route */}
@@ -121,31 +117,25 @@ const Timetable = () => {
     </div>
   );
 
+  // Filter functions based on time
   const morningRoutes = schedules.filter(s => {
-    const hour = parseInt(s.departureTime.split(':')[0]);
-    const period = s.departureTime.includes('PM') ? 'PM' : 'AM';
-    return period === 'AM' && hour >= 6 && hour < 9;
+    const mins = parseTimeMinutes(s.departureTime);
+    return mins >= 360 && mins < 600; // 6:00 AM - 10:00 AM
   });
 
   const midDayRoutes = schedules.filter(s => {
-    const timeParts = s.departureTime.split(':');
-    const hour = parseInt(timeParts[0]);
-    const period = s.departureTime.includes('PM') ? 'PM' : 'AM';
-    return (period === 'AM' && hour >= 10) || (period === 'PM' && hour >= 1 && hour <= 3);
+    const mins = parseTimeMinutes(s.departureTime);
+    return mins >= 600 && mins < 960; // 10:00 AM - 4:00 PM
   });
   
   const eveningRoutes = schedules.filter(s => {
-    const timeParts = s.departureTime.split(':');
-    const hour = parseInt(timeParts[0]);
-    const period = s.departureTime.includes('PM') ? 'PM' : 'AM';
-    return period === 'PM' && hour >= 4 && hour < 7;
+    const mins = parseTimeMinutes(s.departureTime);
+    return mins >= 960 && mins < 1140; // 4:00 PM - 7:00 PM
   });
   
   const nightRoutes = schedules.filter(s => {
-    const timeParts = s.departureTime.split(':');
-    const hour = parseInt(timeParts[0]);
-    const period = s.departureTime.includes('PM') ? 'PM' : 'AM';
-    return period === 'PM' && hour >= 7;
+    const mins = parseTimeMinutes(s.departureTime);
+    return mins >= 1140; // 7:00 PM onwards
   });
 
   return (
@@ -186,64 +176,49 @@ const Timetable = () => {
         {/* Time Slots */}
         <div className="space-y-8">
           {/* Morning Slots */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-gradient-to-r from-primary to-accent rounded-full" />
-              <h2 className="text-2xl font-bold">Morning Routes (6:00 AM - 8:30 AM)</h2>
+          {morningRoutes.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-1 w-12 bg-gradient-to-r from-primary to-accent rounded-full" />
+                <h2 className="text-2xl font-bold">Morning Routes (6:00 AM - 10:00 AM)</h2>
+              </div>
+              {isLoading ? renderLoading() : renderSchedules(morningRoutes)}
             </div>
-            {isLoading ? renderLoading() : renderSchedules(morningRoutes)}
-          </div>
+          )}
 
-          {/* Mid-Morning to Afternoon Slots */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-gradient-to-r from-accent to-primary rounded-full" />
-              <h2 className="text-2xl font-bold">Mid-Day (10:00 AM - 3:00 PM)</h2>
+          {/* Mid-Day Slots */}
+          {midDayRoutes.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-1 w-12 bg-gradient-to-r from-accent to-primary rounded-full" />
+                <h2 className="text-2xl font-bold">Mid-Day (10:00 AM - 4:00 PM)</h2>
+              </div>
+              {isLoading ? renderLoading() : renderSchedules(midDayRoutes)}
             </div>
-            {isLoading ? renderLoading() : renderSchedules(midDayRoutes)}
-          </div>
+          )}
 
           {/* Evening Routes */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-gradient-to-r from-primary to-accent rounded-full" />
-              <h2 className="text-2xl font-bold">Evening Routes (4:00 PM - 6:30 PM)</h2>
+          {eveningRoutes.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-1 w-12 bg-gradient-to-r from-primary to-accent rounded-full" />
+                <h2 className="text-2xl font-bold">Evening Routes (4:00 PM - 7:00 PM)</h2>
+              </div>
+              {isLoading ? renderLoading() : renderSchedules(eveningRoutes)}
             </div>
-            {isLoading ? renderLoading() : renderSchedules(eveningRoutes)}
-          </div>
+          )}
 
           {/* Night Routes */}
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-gradient-to-r from-accent to-primary rounded-full" />
-              <h2 className="text-2xl font-bold">Night Routes (7:30 PM - 9:30 PM)</h2>
+          {nightRoutes.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-1 w-12 bg-gradient-to-r from-accent to-primary rounded-full" />
+                <h2 className="text-2xl font-bold">Night Routes (7:00 PM onwards)</h2>
+              </div>
+              {isLoading ? renderLoading() : renderSchedules(nightRoutes)}
             </div>
-            {isLoading ? renderLoading() : renderSchedules(nightRoutes)}
-          </div>
+          )}
         </div>
-
-        {/* Legend */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle className="text-lg">Status Legend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-6">
-              <div className="flex items-center gap-2">
-                <Badge className="bg-green-600 hover:bg-green-700">On Time</Badge>
-                <span className="text-sm text-muted-foreground">Bus is running on schedule</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-amber-500 hover:bg-amber-600">Delayed</Badge>
-                <span className="text-sm text-muted-foreground">Bus is running late</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="destructive">Cancelled</Badge>
-                <span className="text-sm text-muted-foreground">Service cancelled for today</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-"scripts": {
+  "scripts": {
     "start": "node server.js",
     "server": "nodemon server.js"
   },
@@ -21,6 +21,7 @@
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "mongoose": "^8.19.2",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
     "papaparse": "^5.5.3"
   },

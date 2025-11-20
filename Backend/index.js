@@ -2,7 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js';
-import mongoose from 'mongoose'; // Added for direct access if needed
+import mongoose from 'mongoose';
 
 // Route files
 import authRoutes from './routes/authRoutes.js';
@@ -11,6 +11,9 @@ import timetableRoutes from './routes/timetableRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import conductorRoutes from './routes/conductorRoutes.js';
+
+// Import Scheduler
+import { initScheduler, scheduleDailyBuses } from './utils/dailyScheduler.js'; // --- NEW ---
 
 // Load env vars
 dotenv.config();
@@ -34,23 +37,35 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/conductor', conductorRoutes);
 
-// --- CRITICAL FIX: DROP BAD INDEX ---
-// This attempts to remove the old index that is causing your "schedule: null" duplicate error.
-// It runs once when the server starts.
+// --- DATABASE CLEANUP & INITIALIZATION ---
 mongoose.connection.once('open', async () => {
   try {
     const collection = mongoose.connection.collection('bookings');
-    // Check if the bad index exists and drop it
     const indexes = await collection.indexes();
     const badIndex = indexes.find(idx => idx.name === 'schedule_1_user_1');
     
     if (badIndex) {
       console.log('Found problematic index "schedule_1_user_1". Dropping it...');
       await collection.dropIndex('schedule_1_user_1');
-      console.log('Successfully dropped bad index. Restart the server if needed.');
+      console.log('Successfully dropped bad index.');
     }
+
+    // --- NEW: Run Scheduler on Startup if needed ---
+    // This ensures if the server restarts, or is run for the first time, 
+    // the buses for TODAY are populated immediately.
+    const Bus = mongoose.model('Bus');
+    const busCount = await Bus.countDocuments({ route: { $ne: 'New Asset (Placeholder)' } });
+    
+    if (busCount === 0) {
+      console.log("No buses found. Running initial daily schedule...");
+      await scheduleDailyBuses();
+    }
+    
+    // Start the Cron Job for future days
+    initScheduler(); 
+
   } catch (error) {
-    console.log('Note: Auto-fix for index skipped or failed (this is normal if it was already fixed).');
+    console.log('Auto-fix/Init skipped:', error.message);
   }
 });
 // --- END FIX ---

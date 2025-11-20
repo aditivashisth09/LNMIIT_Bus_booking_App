@@ -2,6 +2,21 @@ import asyncHandler from 'express-async-handler';
 import Bus from '../models/busModel.js';
 import Booking from '../models/bookingModel.js';
 
+// --- HELPER FUNCTION ---
+const parseTime = (timeStr) => {
+  if (!timeStr) return 0;
+  const [time, modifier] = timeStr.split(' ');
+  let [hours, minutes] = time.split(':').map(Number);
+
+  if (modifier === 'PM' && hours !== 12) {
+    hours += 12;
+  }
+  if (modifier === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  return hours * 60 + minutes;
+};
+
 // Helper to get standardized date string (YYYY-MM-DD)
 const getTodayDateString = () => {
   const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
@@ -11,26 +26,22 @@ const getTodayDateString = () => {
   const day = String(dateObj.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+// --- END HELPER FUNCTIONS ---
 
-const parseTime = (timeStr) => {
-  if (!timeStr) return 0;
-  const [time, modifier] = timeStr.split(' ');
-  let [hours, minutes] = time.split(':').map(Number);
-  if (modifier === 'PM' && hours !== 12) hours += 12;
-  if (modifier === 'AM' && hours === 12) hours = 0;
-  return hours * 60 + minutes;
-};
 
 // @desc    Get all buses with booked seat counts (Student Dashboard)
 // @route   GET /api/buses
 // @access  Private (Student/Admin)
 const getAllBuses = asyncHandler(async (req, res) => {
   const allBuses = await Bus.find({}).populate('conductor', 'name phone');
-  const travelDate = getTodayDateString();
   
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const travelDate = getTodayDateString();
 
+  // Filter for students:
+  // 1. Must be in the future
+  // 2. MUST NOT be a placeholder asset
   const availableBuses = allBuses.filter(bus => {
     const isPlaceholder = bus.route === 'New Asset (Placeholder)';
     const departureMinutes = parseTime(bus.departureTime);
@@ -41,7 +52,7 @@ const getAllBuses = asyncHandler(async (req, res) => {
   const bookings = await Booking.aggregate([
     { $match: { 
         status: { $in: ['confirmed', 'attended', 'absent'] },
-        travelDate: travelDate // Only count today's bookings
+        travelDate: travelDate 
     } },
     { $group: { _id: "$bus", bookedSeats: { $sum: 1 } } }
   ]);
@@ -76,10 +87,9 @@ const getBusById = asyncHandler(async (req, res) => {
     throw new Error('Bus not found');
   }
 
-  // Only find bookings for TODAY
   const bookings = await Booking.find({ 
     bus: req.params.id, 
-    travelDate: travelDate, 
+    travelDate: travelDate,
     status: { $in: ['confirmed', 'attended', 'absent'] } 
   });
 
@@ -111,6 +121,8 @@ const getBusById = asyncHandler(async (req, res) => {
 });
 
 // @desc    Create a new bus schedule
+// @route   POST /api/buses
+// @access  Private (Admin)
 const createBus = asyncHandler(async (req, res) => {
   const { busNumber, route, driver, totalSeats, departureTime, arrivalTime, conductor } = req.body;
 
@@ -136,6 +148,8 @@ const createBus = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update a bus
+// @route   PUT /api/buses/:id
+// @access  Private (Admin)
 const updateBus = asyncHandler(async (req, res) => {
   const { busNumber, route, driver, totalSeats, departureTime, arrivalTime, conductor } = req.body;
 
@@ -162,6 +176,8 @@ const updateBus = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete a bus schedule
+// @route   DELETE /api/buses/:id
+// @access  Private (Admin)
 const deleteBus = asyncHandler(async (req, res) => {
   const bus = await Bus.findById(req.params.id);
 
@@ -175,56 +191,52 @@ const deleteBus = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get bus assigned to the logged-in conductor
+// @desc    Get ALL buses assigned to the logged-in conductor (UPDATED)
+// @route   GET /api/buses/mybus
+// @access  Private (Conductor)
 const getConductorBus = asyncHandler(async (req, res) => {
+  // 1. Find ALL buses assigned to this conductor
   const buses = await Bus.find({ conductor: req.user._id });
 
-  if (!buses || buses.length === 0) {
-    res.status(404);
-    throw new Error('You are not assigned to any bus.');
-  }
-
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const travelDate = getTodayDateString();
-
-  const sortedBuses = buses.sort((a, b) => parseTime(a.departureTime) - parseTime(b.departureTime));
-
-  let selectedBus = sortedBuses.find(bus => 
-    bus.route !== 'New Asset (Placeholder)' && 
-    parseTime(bus.departureTime) > currentMinutes
-  );
-
-  if (!selectedBus) {
-    selectedBus = sortedBuses.find(bus => bus.route !== 'New Asset (Placeholder)') || sortedBuses[0];
-  }
-
-  const bus = selectedBus;
-
-  // Aggregate bookings ONLY for TODAY
-  const bookingInfo = await Booking.aggregate([
+  // 2. Get booking counts for ALL these buses
+  // Note: Since bus IDs are unique per schedule, we group by bus ID
+  const busIds = buses.map(b => b._id);
+  
+  const bookingCounts = await Booking.aggregate([
     { $match: { 
-        bus: bus._id, 
-        travelDate: travelDate,
+        bus: { $in: busIds }, 
         status: { $in: ['confirmed', 'attended', 'absent'] } 
-    } },
-    { $group: { _id: null, bookedSeats: { $sum: 1 } } }
+      } 
+    },
+    { $group: { _id: "$bus", count: { $sum: 1 } } }
   ]);
 
-  res.json({
-    id: bus._id,
-    busNumber: bus.busNumber,
-    route: bus.route,
-    departureTime: bus.departureTime,
-    arrivalTime: bus.arrivalTime,
-    totalSeats: bus.totalSeats,
-    bookedSeats: bookingInfo.length > 0 ? bookingInfo[0].bookedSeats : 0,
+  // 3. Format the result
+  const result = buses.map(bus => {
+    const countObj = bookingCounts.find(c => c._id.toString() === bus._id.toString());
+    return {
+      id: bus._id,
+      busNumber: bus.busNumber,
+      route: bus.route,
+      departureTime: bus.departureTime,
+      arrivalTime: bus.arrivalTime,
+      totalSeats: bus.totalSeats,
+      bookedSeats: countObj ? countObj.count : 0,
+    };
   });
+
+  // 4. Sort by departure time so they appear in order
+  result.sort((a, b) => parseTime(a.departureTime) - parseTime(b.departureTime));
+
+  res.json(result);
 });
 
 // @desc    Delete all schedules for a given bus number (Physical Bus Asset)
+// @route   DELETE /api/buses/fleet/:busNumber
+// @access  Private (Admin)
 const deletePhysicalBusAsset = asyncHandler(async (req, res) => {
   const { busNumber } = req.params;
+
   const schedulesToDelete = await Bus.find({ busNumber: busNumber });
 
   if (schedulesToDelete.length === 0) {
@@ -233,6 +245,7 @@ const deletePhysicalBusAsset = asyncHandler(async (req, res) => {
   }
 
   const scheduleIds = schedulesToDelete.map(bus => bus._id);
+
   await Booking.deleteMany({ bus: { $in: scheduleIds } });
   const deleteResult = await Bus.deleteMany({ busNumber: busNumber });
 

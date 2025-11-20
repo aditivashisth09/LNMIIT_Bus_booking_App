@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // Added CardDescription
 import { Badge } from '@/components/ui/badge';
-import { Bus, Clock, Users, CalendarDays, LogOut } from 'lucide-react';
+import { Bus, Clock, Users, CalendarDays, LogOut, MapPin } from 'lucide-react'; // Added MapPin
 import lnmiitLogo from '@/assets/lnmiit-logo.png';
 import apiFetch from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,11 +13,60 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface BusRoute {
   id: string;
   busNumber: string;
+  route: string; // Added route field
   departureTime: string;
   arrivalTime: string;
   totalSeats: number;
   bookedSeats: number;
 }
+
+// --- HELPERS FOR CALCULATING ACTIVE BOOKINGS ---
+const parseTime = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    const parts = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!parts) return 0;
+
+    let hours = parseInt(parts[1]);
+    const minutes = parseInt(parts[2]);
+    const modifier = parts[3].toUpperCase();
+
+    if (modifier === 'PM' && hours !== 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+};
+
+const isUpcoming = (booking: any): boolean => {
+    // Handle missing travelDate (Old Data)
+    if (!booking.travelDate) {
+        const bDate = new Date(booking.bookingDate);
+        const now = new Date();
+        return bDate.setHours(0,0,0,0) >= now.setHours(0,0,0,0);
+    }
+
+    const today = new Date();
+    const nowMinutes = (today.getHours() * 60) + today.getMinutes();
+
+    const tripDateParts = booking.travelDate.split('-');
+    const tripDate = new Date(
+        parseInt(tripDateParts[0]), 
+        parseInt(tripDateParts[1]) - 1, 
+        parseInt(tripDateParts[2])
+    );
+
+    const todayZero = new Date(today); todayZero.setHours(0,0,0,0);
+    
+    if (tripDate.getTime() > todayZero.getTime()) return true;
+    if (tripDate.getTime() < todayZero.getTime()) return false;
+
+    if (booking.bus?.arrivalTime) {
+        const arrivalMinutes = parseTime(booking.bus.arrivalTime);
+        return nowMinutes <= arrivalMinutes;
+    }
+
+    const departureMinutes = parseTime(booking.departureTime);
+    return nowMinutes <= (departureMinutes + 60); 
+}
+// -----------------------------------------------
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -36,7 +85,10 @@ const StudentDashboard = () => {
           apiFetch('/bookings/mybookings')
         ]);
         setBuses(busData);
-        setMyBookingsCount(bookingsData.filter((b: any) => b.status === 'confirmed').length);
+        
+        const activeCount = bookingsData.filter((b: any) => b.status === 'confirmed' && isUpcoming(b)).length;
+        setMyBookingsCount(activeCount);
+
       } catch (error: any) {
         toast.error(`Failed to load data: ${error.message}`);
         if (error.message.includes('401')) {
@@ -61,7 +113,6 @@ const StudentDashboard = () => {
         body: { busId },
       });
       toast.success(response.message);
-      // You might want to refresh stats or waiting list count here
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -160,7 +211,6 @@ const StudentDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* This would require another API call, leaving as 0 for now */}
               <p className="text-2xl font-bold text-green-600">0</p>
               <p className="text-sm text-muted-foreground">Pending requests</p>
             </CardContent>
@@ -190,7 +240,14 @@ const StudentDashboard = () => {
                 <div className="h-2 bg-gradient-to-r from-primary to-accent" />
                 <CardHeader>
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-xl">Bus No: {bus.busNumber}</CardTitle>
+                    <div>
+                      <CardTitle className="text-xl">Bus No: {bus.busNumber}</CardTitle>
+                      {/* ADDED ROUTE DISPLAY HERE */}
+                      <CardDescription className="text-base font-medium mt-1 flex items-center gap-1 text-foreground/80">
+                        <MapPin className="h-4 w-4 text-accent" />
+                        {bus.route}
+                      </CardDescription>
+                    </div>
                     {getAvailabilityBadge(bus.bookedSeats, bus.totalSeats)}
                   </div>
                 </CardHeader>

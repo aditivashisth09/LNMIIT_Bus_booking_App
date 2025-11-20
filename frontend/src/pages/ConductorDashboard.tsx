@@ -22,22 +22,27 @@ interface AssignedBus {
 const ConductorDashboard = () => {
   const navigate = useNavigate();
   const { clearAuth } = useAuth();
-  const [bus, setBus] = useState<AssignedBus | null>(null);
+  // Changed to an array of buses
+  const [buses, setBuses] = useState<AssignedBus[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAssignedBus = async () => {
+    const fetchAssignedBuses = async () => {
       setIsLoading(true);
       try {
         const data = await apiFetch('/buses/mybus');
-        setBus(data);
+        // Ensure we set an array (even if API returns single object by mistake, wrap it)
+        setBuses(Array.isArray(data) ? data : [data]);
       } catch (error: any) {
-        toast.error(error.message);
+        // Don't show error if it's just 404 (no bus assigned)
+        if (!error.message.includes('404')) {
+            toast.error(error.message);
+        }
       } finally {
         setIsLoading(false);
       }
     };
-    fetchAssignedBus();
+    fetchAssignedBuses();
   }, []);
 
   const handleLogout = () => {
@@ -68,53 +73,61 @@ const ConductorDashboard = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
+        <h2 className="text-2xl font-bold mb-6">Your Schedule for Today</h2>
+        
         {isLoading ? (
-          <Skeleton className="h-64 w-full max-w-2xl mx-auto" />
-        ) : bus ? (
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle className="text-2xl">Your Assigned Bus</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Bus className="h-8 w-8 text-primary" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Bus Number</p>
-                    <p className="text-2xl font-bold">{bus.busNumber}</p>
+          <div className="space-y-4 max-w-2xl mx-auto">
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        ) : buses.length > 0 ? (
+          <div className="grid gap-6 max-w-2xl mx-auto">
+            {buses.map((bus) => (
+              <Card key={bus.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                <div className="h-1 bg-gradient-to-r from-primary to-accent" />
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                     <CardTitle className="text-xl flex items-center gap-2">
+                        <Bus className="h-5 w-5 text-primary" />
+                        Bus {bus.busNumber}
+                     </CardTitle>
+                     <Badge className="text-sm px-3 py-1">{bus.departureTime}</Badge>
                   </div>
-                </div>
-                <Badge className="text-lg">{bus.route}</Badge>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-sm text-muted-foreground">Departure</p>
-                  <p className="font-semibold">{bus.departureTime}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Seats</p>
-                  <p className="font-semibold">{bus.totalSeats}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending Bookings</p>
-                  <p className="font-semibold">{bus.bookedSeats}</p>
-                </div>
-              </div>
-              <Button 
-                className="w-full h-12 text-lg"
-                onClick={() => navigate(`/conductor/bus/${bus.id}`)}
-              >
-                Manage Seats & Attendance
-              </Button>
-            </CardContent>
-          </Card>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
+                    <span className="font-semibold text-foreground">{bus.route}</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div className="p-3 border rounded-md">
+                      <p className="text-sm text-muted-foreground mb-1">Total Seats</p>
+                      <p className="text-xl font-bold">{bus.totalSeats}</p>
+                    </div>
+                    <div className="p-3 border rounded-md bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800">
+                      <p className="text-sm text-muted-foreground mb-1">Bookings</p>
+                      <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{bus.bookedSeats}</p>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    className="w-full h-12 text-lg"
+                    onClick={() => navigate(`/conductor/bus/${bus.id}`)}
+                  >
+                    <Users className="h-5 w-5 mr-2" />
+                    Manage Seats & Attendance
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         ) : (
-          <Card className="max-w-2xl mx-auto text-center py-12">
+          <Card className="max-w-2xl mx-auto text-center py-12 border-dashed">
             <CardHeader>
-              <CardTitle className="text-2xl">No Bus Assigned</CardTitle>
+              <CardTitle className="text-2xl text-muted-foreground">No Buses Assigned</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">You are not currently assigned to a bus. Please contact an administrator.</p>
+              <p className="text-muted-foreground">You have no bus schedules assigned for today. Please contact an administrator if this is an error.</p>
             </CardContent>
           </Card>
         )}

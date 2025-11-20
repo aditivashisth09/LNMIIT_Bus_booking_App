@@ -1,0 +1,281 @@
+[
+  {
+    "busNumber": "1",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "06:00 AM",
+    "arrivalTime": "07:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "1",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "07:00 AM",
+    "arrivalTime": "08:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "2",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "07:00 AM",
+    "arrivalTime": "08:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "2",
+    "from": "Ajmeri Gate",
+    "to": "LNMIIT",
+    "departureTime": "08:00 AM",
+    "arrivalTime": "09:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "3",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "07:00 AM",
+    "arrivalTime": "08:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon"]
+  },
+  {
+    "busNumber": "3",
+    "from": "Ajmeri Gate",
+    "to": "LNMIIT",
+    "departureTime": "08:00 AM",
+    "arrivalTime": "09:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon"]
+  },
+  {
+    "busNumber": "4",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "10:00 AM",
+    "arrivalTime": "11:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "4",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "11:00 AM",
+    "arrivalTime": "12:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "2",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "02:00 PM",
+    "arrivalTime": "03:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "2",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "04:00 PM",
+    "arrivalTime": "05:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "3",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "04:30 PM",
+    "arrivalTime": "05:30 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "1",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "06:05 PM",
+    "arrivalTime": "07:05 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "2",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "06:45 PM",
+    "arrivalTime": "07:45 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "3",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "05:30 PM",
+    "arrivalTime": "06:30 PM",
+    "driver": "To Be Assigned",
+    "days": ["Fri"]
+  },
+  {
+    "busNumber": "3",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "07:30 PM",
+    "arrivalTime": "08:30 PM",
+    "driver": "To Be Assigned",
+    "days": ["Fri"]
+  },
+  {
+    "busNumber": "1",
+    "from": "Ajmeri Gate",
+    "to": "LNMIIT",
+    "departureTime": "08:15 PM",
+    "arrivalTime": "09:15 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  },
+  {
+    "busNumber": "3",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "09:00 PM",
+    "arrivalTime": "10:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+  },
+  {
+    "busNumber": "2",
+    "from": "Ajmeri Gate",
+    "to": "LNMIIT",
+    "departureTime": "09:00 PM",
+    "arrivalTime": "10:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  },
+  {
+    "busNumber": "1",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "07:00 AM",
+    "arrivalTime": "08:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "1",
+    "from": "Ajmeri Gate",
+    "to": "LNMIIT",
+    "departureTime": "08:00 AM",
+    "arrivalTime": "09:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "2",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "10:00 AM",
+    "arrivalTime": "11:00 AM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "2",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "12:00 PM",
+    "arrivalTime": "01:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "3",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "01:00 PM",
+    "arrivalTime": "02:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "3",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "03:00 PM",
+    "arrivalTime": "04:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "2",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "04:00 PM",
+    "arrivalTime": "05:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "3",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "04:30 PM",
+    "arrivalTime": "05:30 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "2",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "05:15 PM",
+    "arrivalTime": "06:15 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "1",
+    "from": "LNMIIT",
+    "to": "Raja Park",
+    "departureTime": "05:00 PM",
+    "arrivalTime": "06:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "2",
+    "from": "LNMIIT",
+    "to": "Ajmeri Gate",
+    "departureTime": "06:00 PM",
+    "arrivalTime": "07:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "3",
+    "from": "Ajmeri Gate",
+    "to": "LNMIIT",
+    "departureTime": "08:15 PM",
+    "arrivalTime": "09:15 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  },
+  {
+    "busNumber": "1",
+    "from": "Raja Park",
+    "to": "LNMIIT",
+    "departureTime": "09:00 PM",
+    "arrivalTime": "10:00 PM",
+    "driver": "To Be Assigned",
+    "days": ["Sat", "Sun"]
+  }
+]
