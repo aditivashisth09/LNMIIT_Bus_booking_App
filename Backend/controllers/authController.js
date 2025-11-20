@@ -2,10 +2,6 @@ import asyncHandler from 'express-async-handler';
 import User from '../models/userModel.js';
 import generateToken from '../utils/generateToken.js';
 
-// Default passcodes if .env is empty
-const CONDUCTOR_PASSCODE = process.env.CONDUCTOR_PASSCODE || 'LNMIIT_CONDUCTOR_2025';
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'LNMIIT_ADMIN_2025';
-
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -19,6 +15,10 @@ const registerUser = asyncHandler(async (req, res) => {
     role, 
     passcode,
   } = req.body;
+
+  // Default passcodes if .env is empty
+  const CONDUCTOR_PASSCODE = process.env.CONDUCTOR_PASSCODE;
+  const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
 
   // Validation
   if (!name || !password || !confirmPassword || !phone || !email) {

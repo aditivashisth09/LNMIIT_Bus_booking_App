@@ -87,6 +87,13 @@ const processWaitingList = async (busId) => {
 const createBooking = asyncHandler(async (req, res) => {
   const { busId, seatNumber } = req.body;
   const userId = req.user._id;
+
+  // 1. Block users who are on hold
+  if (req.user.onHold) {
+    res.status(403);
+    throw new Error('Booking denied. You have been marked absent 5 or more times. Please contact admin.');
+  }
+
   const travelDate = getTodayDateString(); 
 
   const bus = await Bus.findById(busId);
@@ -94,6 +101,42 @@ const createBooking = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error('Bus not found');
   }
+
+  // --- NEW LOGIC: Check for Time Overlap with existing trips ---
+  
+  // Calculate new trip times in minutes
+  const newTripStart = parseTime(bus.departureTime);
+  let newTripEnd = parseTime(bus.arrivalTime);
+  // Handle midnight crossing (e.g. 11 PM to 1 AM)
+  if (newTripEnd < newTripStart) {
+      newTripEnd += 24 * 60;
+  }
+
+  // Fetch all ACTIVE trips for this user today (Confirmed or Attended)
+  const existingTrips = await Booking.find({
+      user: userId,
+      travelDate: travelDate,
+      status: { $in: ['confirmed', 'attended'] } // Ignore 'absent' or 'cancelled'
+  }).populate('bus'); // Populate to access arrivalTime
+
+  for (const trip of existingTrips) {
+      if (trip.bus) {
+          const existingStart = parseTime(trip.departureTime);
+          let existingEnd = parseTime(trip.bus.arrivalTime);
+          
+          // Handle midnight crossing for existing trip
+          if (existingEnd < existingStart) {
+              existingEnd += 24 * 60;
+          }
+
+          // Overlap Condition: (StartA < EndB) AND (EndA > StartB)
+          if (newTripStart < existingEnd && newTripEnd > existingStart) {
+               res.status(400);
+               throw new Error(`Booking denied. You already have an active trip (${trip.busNumber}: ${trip.departureTime} - ${trip.bus.arrivalTime}) that overlaps with this time.`);
+          }
+      }
+  }
+  // -------------------------------------------------------------
 
   const isBooked = await Booking.findOne({
     bus: busId,
@@ -145,9 +188,8 @@ const createBooking = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get logged in user's bookings (UPDATED)
+// @desc    Get logged in user's bookings
 const getMyBookings = asyncHandler(async (req, res) => {
-  // We populate 'bus' to get the arrivalTime for frontend filtering
   const bookings = await Booking.find({ user: req.user._id })
     .populate('bus', 'arrivalTime') 
     .sort({ createdAt: -1 });
@@ -193,6 +235,13 @@ const cancelBooking = asyncHandler(async (req, res) => {
 const joinWaitingList = asyncHandler(async (req, res) => {
   const { busId } = req.body;
   const userId = req.user._id;
+
+  // Block users who are on hold
+  if (req.user.onHold) {
+    res.status(403);
+    throw new Error('Waiting list denied. You have been marked absent 5 or more times.');
+  }
+
   const travelDate = getTodayDateString();
 
   const bus = await Bus.findById(busId);

@@ -232,12 +232,6 @@ const BookSeat = () => {
                 <CardDescription>Click on an available seat to select</CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Driver Section */}
-                <div className="mb-6 flex justify-end">
-                  <div className="bg-secondary border-2 border-border rounded-lg px-6 py-3">
-                    <p className="text-sm font-semibold text-center">🚗 Driver</p>
-                  </div>
-                </div>
 
                 {/* Seats Grid */}
                 {isLoading ? (
