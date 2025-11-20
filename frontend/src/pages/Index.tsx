@@ -206,7 +206,7 @@ const Index = () => {
   const switchToAdmin = () => {
     setUserType('admin');
     setActiveTab('login'); 
-    setLoginId('admin@lnmiit.ac.in'); 
+    setLoginId(''); 
     setLoginPassword('');
   };
 
@@ -267,7 +267,7 @@ const Index = () => {
                         <Input
                           id="login-id"
                           type="text"
-                          placeholder={userType === 'conductor' ? 'Enter phone or email' : 'user@lnmiit.ac.in'}
+                          placeholder={userType === 'conductor' ? 'Enter phone or email' : userType === 'admin' ? 'admin@lnmiit.ac.in' : 'user@lnmiit.ac.in'}
                           className="pl-10"
                           value={loginId}
                           onChange={(e) => setLoginId(e.target.value)}
