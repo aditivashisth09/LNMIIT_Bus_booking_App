@@ -29,7 +29,13 @@ const userSchema = mongoose.Schema(
     onHold: {
       type: Boolean,
       default: false,
+    },
+    // --- NEW FIELD: Stores the date when the user's absent count was last reset ---
+    amnestyDate: {
+      type: Date,
+      default: null
     }
+    // -----------------------------------------------------------------------------
   },
   {
     timestamps: true,

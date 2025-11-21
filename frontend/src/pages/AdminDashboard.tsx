@@ -573,12 +573,12 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Add New Bus Schedule</CardTitle>
-                  <CardDescription>Allocate a physical bus asset to a new time slot/route.</CardDescription>
+                  <CardDescription>Allocate a bus to a new time slot/route.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="busNumber">Bus Number (Asset)</Label>
+                      <Label htmlFor="busNumber">Bus Number</Label>
                       <Select
                         value={newBus.busNumber}
                         onValueChange={(value) => setNewBus({...newBus, busNumber: value})}
@@ -593,11 +593,11 @@ const AdminDashboard = () => {
                             </SelectItem>
                           ))}
                           {availableBusNumbers.length === 0 && (
-                            <SelectItem value="NO_BUSES_AVAILABLE" disabled>No upcoming buses available. Add one in Fleet Management.</SelectItem>
+                            <SelectItem value="NO_BUSES_AVAILABLE" disabled>No upcoming buses available.</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">Manage the list of assets by clicking 'Total Physical Buses' on the dashboard.</p>
+                      <p className="text-xs text-muted-foreground">Manage the list of buses by clicking 'Total Buses' on the dashboard.</p>
                     </div>
                     
                     <div className="space-y-2">
@@ -683,7 +683,7 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Absentee Hold List</CardTitle>
-                  <CardDescription>Students with 5 or more 'Absent' marks are automatically restricted from booking.</CardDescription>
+                  <CardDescription>Students with 5 'Absent' marks are restricted from booking.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {isLoadingHoldList ? (

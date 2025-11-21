@@ -7,7 +7,9 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import Papa from 'papaparse';
 
-// --- HELPER FUNCTION ---
+// ... (Keep your helper functions: parseTime, getTodayDateString) ...
+
+// --- HELPER FUNCTIONS ---
 const parseTime = (timeStr) => {
   if (!timeStr) return 0;
   const [time, modifier] = timeStr.split(' ');
@@ -21,25 +23,32 @@ const parseTime = (timeStr) => {
   }
   return hours * 60 + minutes;
 };
-// --- END HELPER FUNCTION ---
 
-// @desc    Get dashboard stats
-// @route   GET /api/admin/stats
-// @access  Private (Admin)
+const getTodayDateString = () => {
+  const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+  const dateObj = new Date(now);
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+// --- END HELPER FUNCTIONS ---
+
+// ... (Keep getDashboardStats, downloadReport, getConductors, getAllBusSchedules, getHoldList as they were) ...
+
 const getDashboardStats = asyncHandler(async (req, res) => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const travelDate = getTodayDateString(); 
 
   const allBuses = await Bus.find({});
   
-  // Keep bus if: It's upcoming OR it's a placeholder (Asset)
   const activeRecords = allBuses.filter(bus => 
     bus.route === 'New Asset (Placeholder)' || 
     parseTime(bus.departureTime) > currentMinutes
   );
   const activeBusIds = activeRecords.map(bus => bus._id);
 
-  // Calculate totalBuses (Unique Assets)
   const uniqueBuses = await Bus.aggregate([
     { $match: { _id: { $in: activeBusIds } } },
     { $group: { _id: '$busNumber' } },
@@ -48,15 +57,14 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   const totalBuses = uniqueBuses.length > 0 ? uniqueBuses[0].totalUniqueBuses : 0;
 
   const totalBookings = await Booking.countDocuments({ 
-    bus: { $in: activeBusIds },
+    travelDate: travelDate, 
     status: { $in: ['confirmed', 'attended', 'absent'] } 
   });
   
   const totalWaiting = await WaitingList.countDocuments({ bus: { $in: activeBusIds } });
   
-  // Only count capacity of real upcoming trips, not placeholders
-  const realTrips = activeRecords.filter(b => b.route !== 'New Asset (Placeholder)');
-  const totalCapacity = realTrips.reduce((acc, bus) => acc + bus.totalSeats, 0);
+  const allDailyTrips = allBuses.filter(b => b.route !== 'New Asset (Placeholder)');
+  const totalCapacity = allDailyTrips.reduce((acc, bus) => acc + bus.totalSeats, 0);
   
   const occupancyRate = totalCapacity > 0 ? ((totalBookings / totalCapacity) * 100).toFixed(0) : 0;
 
@@ -69,9 +77,6 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Download report
-// @route   GET /api/admin/report
-// @access  Private (Admin)
 const downloadReport = asyncHandler(async (req, res) => {
   const bookings = await Booking.find({})
     .populate('user', 'name email')
@@ -113,24 +118,18 @@ const downloadReport = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get all conductor users
-// @route   GET /api/admin/conductors
-// @access  Private (Admin)
 const getConductors = asyncHandler(async (req, res) => {
   const conductors = await User.find({ role: 'conductor' }).select('_id name phone');
   res.json(conductors);
 });
 
-// @desc    Get all bus schedules (UPCOMING + Placeholders for Admin)
-// @route   GET /api/admin/buses/all
-// @access  Private (Admin)
 const getAllBusSchedules = asyncHandler(async (req, res) => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const travelDate = getTodayDateString(); 
 
   const allBuses = await Bus.find({}).populate('conductor', 'name phone');
   
-  // Keep Placeholders AND Upcoming trips
   const activeRecords = allBuses.filter(bus => 
     bus.route === 'New Asset (Placeholder)' || 
     parseTime(bus.departureTime) > currentMinutes
@@ -138,7 +137,12 @@ const getAllBusSchedules = asyncHandler(async (req, res) => {
 
   const busesWithCounts = await Promise.all(activeRecords.map(async (bus) => {
       const bookings = await Booking.aggregate([
-          { $match: { bus: bus._id, status: { $in: ['confirmed', 'attended', 'absent'] } } },
+          { $match: { 
+              bus: bus._id, 
+              status: { $in: ['confirmed', 'attended', 'absent'] },
+              travelDate: travelDate 
+            } 
+          },
           { $group: { _id: null, bookedSeats: { $sum: 1 } } }
       ]);
       
@@ -155,19 +159,18 @@ const getAllBusSchedules = asyncHandler(async (req, res) => {
       };
   }));
 
+  busesWithCounts.sort((a, b) => parseTime(a.departureTime) - parseTime(b.departureTime));
+
   res.json(busesWithCounts);
 });
 
-// --- NEW FUNCTIONS FOR HOLD MANAGEMENT ---
-
-// @desc    Get all students currently on hold
-// @route   GET /api/admin/hold-list
-// @access  Private (Admin)
 const getHoldList = asyncHandler(async (req, res) => {
   const holdList = await User.find({ role: 'student', onHold: true }).select('_id name email');
   
-  // Fetch absent counts for display
   const usersWithAbsentCount = await Promise.all(holdList.map(async (user) => {
+    // Note: This count might still show > 5 in the UI until they are reset, 
+    // but that is accurate (they *are* absent that many times). 
+    // The "amnesty" logic only applies when calculating the *next* ban.
     const absentCount = await Booking.countDocuments({
       user: user._id,
       status: 'absent',
@@ -203,25 +206,18 @@ const removeUserHold = asyncHandler(async (req, res) => {
       throw new Error('Only student users can be placed on hold.');
     }
 
-    // --- FIX: Use findByIdAndUpdate to bypass "phone required" validation ---
-    await User.findByIdAndUpdate(userId, { onHold: false });
-    console.log(`User ${user.name} onHold status cleared.`);
-    // -----------------------------------------------------------------------
-
-    // Resetting the 'absent' booking count so they don't get banned immediately again.
-    if (!Booking) {
-       throw new Error("Booking model is not defined/imported!");
-    }
-
-    const updateResult = await Booking.updateMany(
-      { user: userId, status: 'absent' },
-      { $set: { status: 'attended' } }
-    );
+    // --- FIX: Remove hold AND Set Amnesty Date ---
+    // We do NOT modify past bookings. We just set a flag date.
+    // Future bans will only count bookings created AFTER this date.
+    await User.findByIdAndUpdate(userId, { 
+        onHold: false,
+        amnestyDate: new Date() 
+    });
     
-    console.log(`Updated ${updateResult.modifiedCount} absent bookings to attended.`);
+    console.log(`User ${user.name} released from hold. Amnesty granted at ${new Date()}`);
 
     res.json({ 
-      message: `${user.name} has been removed from hold status.`,
+      message: `${user.name} has been removed from hold status. Count reset.`,
       userId: userId 
     });
 

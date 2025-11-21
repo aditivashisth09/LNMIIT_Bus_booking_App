@@ -3,7 +3,7 @@ import Booking from '../models/bookingModel.js';
 import Bus from '../models/busModel.js';
 import User from '../models/userModel.js';
 
-// --- HELPER FUNCTION (Correctly implemented) ---
+// --- HELPER FUNCTIONS ---
 const parseTime = (timeStr) => {
   if (!timeStr) return 0;
   const [time, modifier] = timeStr.split(' ');
@@ -17,7 +17,17 @@ const parseTime = (timeStr) => {
   }
   return hours * 60 + minutes;
 };
-// --- END HELPER FUNCTION ---
+
+// NEW: Helper to get standardized date string (YYYY-MM-DD)
+const getTodayDateString = () => {
+  const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+  const dateObj = new Date(now);
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+// --- END HELPER FUNCTIONS ---
 
 
 // @desc    Get all bookings for a specific bus (for conductor)
@@ -25,6 +35,7 @@ const parseTime = (timeStr) => {
 // @access  Private (Conductor)
 const getBusBookingsForConductor = asyncHandler(async (req, res) => {
   const busId = req.params.id;
+  const travelDate = getTodayDateString(); // Get today's date
   
   // Find the bus and check if this conductor is assigned to it
   const bus = await Bus.findById(busId);
@@ -38,9 +49,12 @@ const getBusBookingsForConductor = asyncHandler(async (req, res) => {
     throw new Error('Not authorized to view bookings for this bus');
   }
 
-  // Get all bookings for this bus, populating user details
-  const bookings = await Booking.find({ bus: busId })
-    .populate('user', 'name email');
+  // --- FIX: Filter by TODAY'S DATE ---
+  const bookings = await Booking.find({ 
+    bus: busId,
+    travelDate: travelDate 
+  }).populate('user', 'name email');
+  // -----------------------------------
     
   // Get all seats for the layout
   const allSeats = [];
@@ -119,20 +133,30 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
   booking.status = status;
   await booking.save();
   
-  // --- NEW LOGIC: Absentee Check and Ban ---
+  // --- NEW LOGIC: Absentee Check and Ban (With Amnesty Date Support) ---
   if (status === 'absent') {
     const userId = booking.user;
     
-    // Count total 'absent' bookings for this user
-    const absentCount = await Booking.countDocuments({
+    // Fetch the user to check if they have an amnestyDate
+    const user = await User.findById(userId);
+
+    // Build the query
+    const countQuery = {
       user: userId,
       status: 'absent',
-    });
+    };
+
+    // If user was previously reset, only count bookings created AFTER the amnestyDate
+    if (user && user.amnestyDate) {
+       countQuery.createdAt = { $gt: user.amnestyDate };
+    }
+    
+    // Count total 'absent' bookings based on the query
+    const absentCount = await Booking.countDocuments(countQuery);
 
     if (absentCount >= 5) {
       // Find and update the user to put them on hold
       await User.findByIdAndUpdate(userId, { onHold: true });
-      // NOTE: An email notification to the user would also be good practice here.
       console.log(`User ${userId} reached ${absentCount} absent marks and has been placed on hold.`);
     }
   }

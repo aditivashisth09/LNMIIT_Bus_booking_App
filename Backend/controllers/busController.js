@@ -72,6 +72,9 @@ const getAllBuses = asyncHandler(async (req, res) => {
     };
   });
 
+  // Sort buses by departure time (Ascending)
+  busesWithCounts.sort((a, b) => parseTime(a.departureTime) - parseTime(b.departureTime));
+
   res.json(busesWithCounts);
 });
 
@@ -126,12 +129,33 @@ const getBusById = asyncHandler(async (req, res) => {
 const createBus = asyncHandler(async (req, res) => {
   const { busNumber, route, driver, totalSeats, departureTime, arrivalTime, conductor } = req.body;
 
-  const existingSchedule = await Bus.findOne({ busNumber, departureTime });
-  
-  if (existingSchedule && route !== 'New Asset (Placeholder)') {
-    res.status(400);
-    throw new Error(`A schedule for Bus ${busNumber} departing at ${departureTime} already exists.`);
+  // --- FIX: Check for Overlapping Schedules for the same Bus ---
+  if (route !== 'New Asset (Placeholder)') {
+      const newStart = parseTime(departureTime);
+      let newEnd = parseTime(arrivalTime);
+      // Handle midnight crossing
+      if (newEnd < newStart) newEnd += 24 * 60; 
+
+      // Fetch all existing schedules for this bus (excluding placeholders)
+      const existingSchedules = await Bus.find({ 
+          busNumber: busNumber,
+          route: { $ne: 'New Asset (Placeholder)' }
+      });
+
+      for (const schedule of existingSchedules) {
+          const existingStart = parseTime(schedule.departureTime);
+          let existingEnd = parseTime(schedule.arrivalTime);
+          
+          if (existingEnd < existingStart) existingEnd += 24 * 60;
+
+          // Overlap Condition: (StartA < EndB) and (EndA > StartB)
+          if (newStart < existingEnd && newEnd > existingStart) {
+              res.status(400);
+              throw new Error(`Bus ${busNumber} is already scheduled from ${schedule.departureTime} to ${schedule.arrivalTime}. Cannot overlap.`);
+          }
+      }
   }
+  // -------------------------------------------------------------
 
   const bus = new Bus({
     busNumber,
@@ -195,23 +219,21 @@ const deleteBus = asyncHandler(async (req, res) => {
 // @route   GET /api/buses/mybus
 // @access  Private (Conductor)
 const getConductorBus = asyncHandler(async (req, res) => {
-  // 1. Find ALL buses assigned to this conductor
   const buses = await Bus.find({ conductor: req.user._id });
 
-  // 2. Get booking counts for ALL these buses
-  // Note: Since bus IDs are unique per schedule, we group by bus ID
   const busIds = buses.map(b => b._id);
-  
+  const travelDate = getTodayDateString(); 
+
   const bookingCounts = await Booking.aggregate([
     { $match: { 
         bus: { $in: busIds }, 
-        status: { $in: ['confirmed', 'attended', 'absent'] } 
+        status: { $in: ['confirmed', 'attended', 'absent'] },
+        travelDate: travelDate 
       } 
     },
     { $group: { _id: "$bus", count: { $sum: 1 } } }
   ]);
 
-  // 3. Format the result
   const result = buses.map(bus => {
     const countObj = bookingCounts.find(c => c._id.toString() === bus._id.toString());
     return {
@@ -225,7 +247,6 @@ const getConductorBus = asyncHandler(async (req, res) => {
     };
   });
 
-  // 4. Sort by departure time so they appear in order
   result.sort((a, b) => parseTime(a.departureTime) - parseTime(b.departureTime));
 
   res.json(result);
@@ -246,11 +267,35 @@ const deletePhysicalBusAsset = asyncHandler(async (req, res) => {
 
   const scheduleIds = schedulesToDelete.map(bus => bus._id);
 
-  await Booking.deleteMany({ bus: { $in: scheduleIds } });
+  // --- UPDATED LOGIC: Preserve Past Bookings ---
+  const today = getTodayDateString();
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // 1. Delete bookings strictly in the future (Tomorrow onwards)
+  await Booking.deleteMany({ 
+    bus: { $in: scheduleIds },
+    travelDate: { $gt: today } 
+  });
+
+  // 2. Delete bookings TODAY that haven't happened yet
+  const todayBookings = await Booking.find({
+    bus: { $in: scheduleIds },
+    travelDate: today
+  });
+
+  const futureBookingIdsToday = todayBookings.filter(b => {
+    return parseTime(b.departureTime) > currentMinutes;
+  }).map(b => b._id);
+
+  if (futureBookingIdsToday.length > 0) {
+    await Booking.deleteMany({ _id: { $in: futureBookingIdsToday } });
+  }
+  
   const deleteResult = await Bus.deleteMany({ busNumber: busNumber });
 
   res.json({ 
-    message: `Physical Bus Asset ${busNumber} and all ${deleteResult.deletedCount} schedules deleted successfully.`,
+    message: `Physical Bus Asset ${busNumber} deleted. Future bookings cleared, past history preserved.`,
     deletedSchedulesCount: deleteResult.deletedCount
   });
 });
