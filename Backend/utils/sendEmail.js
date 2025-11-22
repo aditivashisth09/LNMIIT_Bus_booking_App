@@ -1,24 +1,33 @@
-// /utils/sendEmail.js  (ES module, default export)
-import axios from 'axios';
+import nodemailer from 'nodemailer';
 
-const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const sendEmail = async (options) => {
+  // Convert port to number to be safe
+  const port = Number(process.env.EMAIL_HOST_PORT) || Number(process.env.EMAIL_PORT) || 587;
 
-export default async function sendEmail({ to, subject, html, text, from }) {
-  const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) throw new Error('BREVO_API_KEY not set');
-
-  const payload = {
-    sender: { email: from?.email ?? 'noreply@yourdomain.com', name: from?.name ?? 'My App' },
-    to: Array.isArray(to) ? to : [{ email: to }],
-    subject,
-    htmlContent: html,
-    textContent: text,
-  };
-
-  const res = await axios.post(BREVO_API_URL, payload, {
-    headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
-    timeout: 20000,
+  const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com', 
+    port: port,
+    // FIX: Automatically enable 'secure' (SSL) if using port 465
+    secure: port === 465, 
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
   });
 
-  return res.data;
-}
+  const message = {
+    from: `"LNMIIT Transport" <${process.env.EMAIL_USER}>`, 
+    to: options.email,
+    subject: options.subject,
+    text: options.message,
+  };
+
+  try {
+    const info = await transporter.sendMail(message);
+    console.log('Message sent: %s', info.messageId);
+  } catch (error) {
+    console.error('Error sending email: ', error);
+  }
+};
+
+export default sendEmail;
