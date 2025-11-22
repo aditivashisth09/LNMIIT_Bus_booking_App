@@ -1,21 +1,25 @@
 import nodemailer from 'nodemailer';
 
 const sendEmail = async (options) => {
-  console.log("📧 EMAIL DEBUG: Attempting to send via Gmail...");
+  console.log("📧 EMAIL DEBUG: Attempting to send via Port 587 (STARTTLS)...");
   console.log(`   - User: ${process.env.EMAIL_USER}`);
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail', // Use the built-in 'gmail' service preset
+    host: 'smtp.gmail.com',
+    port: 587,      // Change to 587
+    secure: false,  // MUST be false for port 587
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
-    // --- NETWORK FIXES ---
-    family: 4, // Force IPv4 (Fixes the ETIMEDOUT issue)
+    // --- CRITICAL SETTINGS FOR CLOUD SERVERS ---
+    family: 4, // Force IPv4
     tls: {
-        rejectUnauthorized: false // Prevent SSL handshake errors
+        rejectUnauthorized: false, // Ignore certificate errors
+        ciphers: 'SSLv3'           // Use compatible cipher
     },
-    // ---------------------
+    // -------------------------------------------
+    connectionTimeout: 10000, // Fail fast (10s)
   });
 
   const message = {
@@ -30,7 +34,7 @@ const sendEmail = async (options) => {
     console.log('✅ Message sent successfully:', info.messageId);
   } catch (error) {
     console.error('❌ FATAL EMAIL ERROR:', error);
-    // Don't throw error, just log it so the app doesn't crash
+    // We catch the error so the user's booking doesn't crash
   }
 };
 
