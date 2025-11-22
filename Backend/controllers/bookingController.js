@@ -169,7 +169,8 @@ const createBooking = asyncHandler(async (req, res) => {
 
   if (booking) {
     // --- FIX: REMOVED 'await' so UI doesn't hang ---
-    sendEmail({
+    try{
+      sendEmail({
       email: req.user.email,
       subject: 'Booking Confirmed - LNMIIT Bus Service',
       message: `Dear ${req.user.name},
@@ -194,7 +195,15 @@ LNMIIT Transport Department`,
     }).catch(err => console.error("Booking confirmation email failed:", err.message));
     // ------------------------------------------------
 
-    res.status(201).json(booking);
+    }
+    catch (error) {
+      console.error("Booking confirmation email failed:", error.message);
+      // We intentionally catch the error so the booking is still successful 
+      // even if the email fails.
+    }
+
+        res.status(201).json(booking);
+
   } else {
     res.status(400);
     throw new Error('Invalid booking data');
@@ -239,7 +248,8 @@ const cancelBooking = asyncHandler(async (req, res) => {
   }
 
   // --- FIX: REMOVED 'await' here too ---
-  sendEmail({
+  try {
+    sendEmail({
     email: req.user.email,
     subject: 'Booking Cancelled - LNMIIT Bus Service',
     message: `Dear ${req.user.name},
@@ -264,6 +274,11 @@ LNMIIT Transport Department`,
   await booking.deleteOne();
   processWaitingList(booking.bus);
 
+  } catch (error) {
+    console.error("Cancellation email failed:", error.message);
+  }
+
+  await booking.deleteOne();
   res.json({ message: 'Booking cancelled successfully' });
 });
 
