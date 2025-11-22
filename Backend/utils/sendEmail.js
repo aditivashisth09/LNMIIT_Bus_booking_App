@@ -1,21 +1,24 @@
-// send-with-brevo-api.js
-const axios = require('axios');
+// /utils/sendEmail.js  (ES module, default export)
+import axios from 'axios';
 
-async function sendEmail() {
-  const API_KEY = process.env.BREVO_API_KEY; // create and store in env
-  const data = {
-    sender: { name: "My App", email: "noreply@yourdomain.com" },
-    to: [{ email: "user@example.com", name: "User" }],
-    subject: "Test",
-    htmlContent: "<h1>Hello</h1><p>This is a test</p>"
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
+export default async function sendEmail({ to, subject, html, text, from }) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error('BREVO_API_KEY not set');
+
+  const payload = {
+    sender: { email: from?.email ?? 'noreply@yourdomain.com', name: from?.name ?? 'My App' },
+    to: Array.isArray(to) ? to : [{ email: to }],
+    subject,
+    htmlContent: html,
+    textContent: text,
   };
 
-  const res = await axios.post(
-    'https://api.brevo.com/v3/smtp/email',
-    data,
-    { headers: { 'api-key': API_KEY, 'Content-Type': 'application/json' } }
-  );
-  console.log('Brevo response', res.data);
-}
+  const res = await axios.post(BREVO_API_URL, payload, {
+    headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+    timeout: 20000,
+  });
 
-sendEmail().catch(err => console.error(err.response?.data || err.message));
+  return res.data;
+}
