@@ -1,40 +1,21 @@
-import nodemailer from 'nodemailer';
+// send-with-brevo-api.js
+const axios = require('axios');
 
-const sendEmail = async (options) => {
-  const host = process.env.EMAIL_HOST || 'smtp-relay.brevo.com';
-  const port = Number(process.env.EMAIL_PORT) || 587;
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-
-  console.log(`📧 EMAIL SERVICE: Connecting to ${host}:${port}...`);
-
- const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 2525,
-  secure: false,  // must be false for 2525
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  family: 4,
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-});
-
-
-  const message = {
-    from: `"LNMIIT Transport" <${user}>`,
-    to: options.email,
-    subject: options.subject,
-    text: options.message,
+async function sendEmail() {
+  const API_KEY = process.env.BREVO_API_KEY; // create and store in env
+  const data = {
+    sender: { name: "My App", email: "noreply@yourdomain.com" },
+    to: [{ email: "user@example.com", name: "User" }],
+    subject: "Test",
+    htmlContent: "<h1>Hello</h1><p>This is a test</p>"
   };
 
-  try {
-    const info = await transporter.sendMail(message);
-    console.log('✅ Message sent successfully. ID:', info.messageId);
-  } catch (error) {
-    console.error('❌ EMAIL FAILED:', error.message);
-  }
-};
+  const res = await axios.post(
+    'https://api.brevo.com/v3/smtp/email',
+    data,
+    { headers: { 'api-key': API_KEY, 'Content-Type': 'application/json' } }
+  );
+  console.log('Brevo response', res.data);
+}
 
-export default sendEmail;
+sendEmail().catch(err => console.error(err.response?.data || err.message));
