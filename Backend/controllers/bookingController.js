@@ -73,11 +73,12 @@ const processWaitingList = async (busId) => {
 
       const user = await User.findById(waitingUser.user);
       if (user) {
-        await sendEmail({
+        // Fire and forget email (don't await)
+        sendEmail({
           email: user.email,
           subject: 'You\'re Off The Waiting List! - LNMIIT Bus System',
           message: `Dear ${user.name},\n\nA seat has become available on bus ${bus.busNumber}. Your seat ${availableSeat} has been automatically confirmed for today.`,
-        });
+        }).catch(err => console.error("Waiting list email failed:", err.message));
       }
     }
   }
@@ -102,41 +103,34 @@ const createBooking = asyncHandler(async (req, res) => {
     throw new Error('Bus not found');
   }
 
-  // --- NEW LOGIC: Check for Time Overlap with existing trips ---
-  
-  // Calculate new trip times in minutes
+  // Check for Time Overlap with existing trips
   const newTripStart = parseTime(bus.departureTime);
   let newTripEnd = parseTime(bus.arrivalTime);
-  // Handle midnight crossing (e.g. 11 PM to 1 AM)
   if (newTripEnd < newTripStart) {
       newTripEnd += 24 * 60;
   }
 
-  // Fetch all ACTIVE trips for this user today (Confirmed or Attended)
   const existingTrips = await Booking.find({
       user: userId,
       travelDate: travelDate,
-      status: { $in: ['confirmed', 'attended'] } // Ignore 'absent' or 'cancelled'
-  }).populate('bus'); // Populate to access arrivalTime
+      status: { $in: ['confirmed', 'attended'] }
+  }).populate('bus');
 
   for (const trip of existingTrips) {
       if (trip.bus) {
           const existingStart = parseTime(trip.departureTime);
           let existingEnd = parseTime(trip.bus.arrivalTime);
           
-          // Handle midnight crossing for existing trip
           if (existingEnd < existingStart) {
               existingEnd += 24 * 60;
           }
 
-          // Overlap Condition: (StartA < EndB) AND (EndA > StartB)
           if (newTripStart < existingEnd && newTripEnd > existingStart) {
                res.status(400);
                throw new Error(`Booking denied. You already have an active trip (${trip.busNumber}: ${trip.departureTime} - ${trip.bus.arrivalTime}) that overlaps with this time.`);
           }
       }
   }
-  // -------------------------------------------------------------
 
   const isBooked = await Booking.findOne({
     bus: busId,
@@ -174,8 +168,8 @@ const createBooking = asyncHandler(async (req, res) => {
   });
 
   if (booking) {
-    const bookingDateFormatted = formatDate(booking.bookingDate);
-    await sendEmail({
+    // --- FIX: REMOVED 'await' so UI doesn't hang ---
+    sendEmail({
       email: req.user.email,
       subject: 'Booking Confirmed - LNMIIT Bus Service',
       message: `Dear ${req.user.name},
@@ -197,7 +191,8 @@ Safe Travels!
 
 Best regards,
 LNMIIT Transport Department`,
-    });
+    }).catch(err => console.error("Booking confirmation email failed:", err.message));
+    // ------------------------------------------------
 
     res.status(201).json(booking);
   } else {
@@ -243,7 +238,8 @@ const cancelBooking = asyncHandler(async (req, res) => {
      throw new Error('Cannot cancel less than 30 minutes before departure.');
   }
 
-  await sendEmail({
+  // --- FIX: REMOVED 'await' here too ---
+  sendEmail({
     email: req.user.email,
     subject: 'Booking Cancelled - LNMIIT Bus Service',
     message: `Dear ${req.user.name},
@@ -262,7 +258,8 @@ We hope to serve you again soon.
 
 Best regards,
 LNMIIT Transport Department`,
-  });
+  }).catch(err => console.error("Cancellation email failed:", err.message));
+  // -------------------------------------
 
   await booking.deleteOne();
   processWaitingList(booking.bus);
@@ -275,7 +272,6 @@ const joinWaitingList = asyncHandler(async (req, res) => {
   const { busId } = req.body;
   const userId = req.user._id;
 
-  // Block users who are on hold
   if (req.user.onHold) {
     res.status(403);
     throw new Error('Waiting list denied. You have been marked absent 5 or more times.');
