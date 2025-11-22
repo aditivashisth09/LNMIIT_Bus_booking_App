@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import lnmiitLogo from '@/assets/lnmiit-logo.png';
 import apiFetch from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth'; // NEW
+import { useAuth } from '@/hooks/useAuth'; 
 
 interface Seat {
   id: string;
@@ -31,23 +31,19 @@ interface BusDetails {
 const BookSeat = () => {
   const { busId } = useParams();
   const navigate = useNavigate();
-  const { auth } = useAuth(); // NEW: Get auth details
+  const { auth } = useAuth(); 
   
   const [busDetails, setBusDetails] = useState<BusDetails | null>(null);
   const [seats, setSeats] = useState<Seat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBooking, setIsBooking] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
-  const [isOnHold, setIsOnHold] = useState(false); // NEW STATE
+  const [isOnHold, setIsOnHold] = useState(false);
 
   useEffect(() => {
-    // Check if the user is currently banned (based on the stored auth info)
-    // NOTE: A proper check should ideally fetch the current user status, 
-    // but relying on the auth object here is a quick client-side check.
     if (auth?.onHold) {
         setIsOnHold(true);
         toast.error('Booking denied. You are on hold for excessive absences.');
-        // Prevent loading further data if the user is already banned.
         setIsLoading(false);
         return;
     }
@@ -67,7 +63,7 @@ const BookSeat = () => {
       }
     };
     fetchBusData();
-  }, [busId, navigate, auth]); // Added auth to dependency array
+  }, [busId, navigate, auth]);
 
   const handleSeatClick = (seat: Seat) => {
     if (isOnHold) {
@@ -110,6 +106,7 @@ const BookSeat = () => {
     }
   };
 
+  // --- FIXED BOOKING LOGIC ---
   const handleConfirmBooking = async () => {
     if (isOnHold) {
       toast.error('Booking denied. You are on hold for excessive absences.');
@@ -132,25 +129,32 @@ const BookSeat = () => {
       });
       
       toast.success(`Seat ${selectedSeat.number} booked successfully!`);
+      
+      // 1. Immediate Visual Feedback: Mark seat as booked
+      setSeats(prev => prev.map(s => 
+        s.id === selectedSeat.id ? { ...s, status: 'booked' } : s
+      ));
+
+      // 2. Delay navigation slightly for UX, but keep button in 'Booking...' state
       setTimeout(() => {
         navigate('/my-bookings');
       }, 1500);
       
     } catch (error: any) {
-      // Catch backend 403 error for 'onHold' check
       if (error.message.includes('Booking denied. You have been marked absent')) {
          toast.error(error.message);
-         setIsOnHold(true); // Update state to keep the message visible
+         setIsOnHold(true); 
       } else {
          toast.error(error.message);
       }
       
-      // If booking failed, reset seat statuses
+      // Reset selection on error
       setSeats(prev => prev.map(s => 
         s.status === 'selected' ? { ...s, status: 'available' } : s
       ));
       setSelectedSeat(null);
-    } finally {
+      
+      // 3. Only re-enable button if there was an error
       setIsBooking(false);
     }
   };
@@ -159,7 +163,6 @@ const BookSeat = () => {
   const bookedCount = seats.filter(s => s.status === 'booked').length;
   const totalCount = seats.length;
   
-  // Conditionally render the hold warning card
   const HoldWarningCard = () => (
     <Card className="border-red-500 bg-red-50/50 dark:bg-red-900/20 mb-6">
       <CardHeader className="flex flex-row items-center space-y-0 p-4">
@@ -168,7 +171,7 @@ const BookSeat = () => {
       </CardHeader>
       <CardContent className="pt-0">
         <CardDescription className="text-red-500">
-          You are currently on hold due to 5 absences**. You cannot book new seats. Please pay the fine in MIS portal and contact the administrator for removal.
+          You are currently on hold due to 5 absences. You cannot book new seats. Please pay the fine in MIS portal and contact the administrator for removal.
         </CardDescription>
       </CardContent>
     </Card>
@@ -188,7 +191,7 @@ const BookSeat = () => {
             Back to Dashboard
           </Button>
           
-          {isOnHold && <HoldWarningCard />} {/* NEW */}
+          {isOnHold && <HoldWarningCard />}
           
           <Card>
             <CardHeader>
@@ -232,7 +235,7 @@ const BookSeat = () => {
                 <CardDescription>Click on an available seat to select</CardDescription>
               </CardHeader>
               <CardContent>
-
+                
                 {/* Seats Grid */}
                 {isLoading ? (
                   <div className="flex flex-col items-center gap-2">
@@ -253,7 +256,7 @@ const BookSeat = () => {
                               <button
                                 key={seat.id}
                                 onClick={() => handleSeatClick(seat)}
-                                disabled={seat.status === 'booked' || isBooking || isOnHold} // NEW: Disable if on hold
+                                disabled={seat.status === 'booked' || isBooking || isOnHold} 
                                 className={`w-12 h-12 rounded-lg border-2 transition-all duration-200 flex items-center justify-center font-semibold text-white text-sm ${getSeatColor(seat.status)}`}
                               >
                                 {seat.number}
@@ -273,7 +276,7 @@ const BookSeat = () => {
                               <button
                                 key={seat.id}
                                 onClick={() => handleSeatClick(seat)}
-                                disabled={seat.status === 'booked' || isBooking || isOnHold} // NEW: Disable if on hold
+                                disabled={seat.status === 'booked' || isBooking || isOnHold} 
                                 className={`w-12 h-12 rounded-lg border-2 transition-all duration-200 flex items-center justify-center font-semibold text-white text-sm ${getSeatColor(seat.status)}`}
                               >
                                 {seat.number}
@@ -356,7 +359,7 @@ const BookSeat = () => {
                 <Button 
                   className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 h-12 text-base font-semibold"
                   onClick={handleConfirmBooking}
-                  disabled={!selectedSeat || isLoading || isBooking || isOnHold} // NEW: Disable if on hold
+                  disabled={!selectedSeat || isLoading || isBooking || isOnHold} 
                 >
                   {isBooking ? 'Booking...' : 'Confirm Booking'}
                 </Button>
