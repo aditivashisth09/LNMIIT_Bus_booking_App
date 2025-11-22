@@ -1,5 +1,3 @@
-// Backend/controllers/bookingController.js
-
 import asyncHandler from 'express-async-handler';
 import Booking from '../models/bookingModel.js';
 import Bus from '../models/busModel.js';
@@ -73,7 +71,8 @@ const processWaitingList = async (busId) => {
 
       const user = await User.findById(waitingUser.user);
       if (user) {
-        // Fire and forget email (don't await)
+        // Ideally, we should await this too in production, but leaving as is since it's a background task.
+        // If you want waiting list emails to be 100% reliable in serverless, add 'await' here too.
         sendEmail({
           email: user.email,
           subject: 'You\'re Off The Waiting List! - LNMIIT Bus System',
@@ -168,12 +167,12 @@ const createBooking = asyncHandler(async (req, res) => {
   });
 
   if (booking) {
-    // --- FIX: REMOVED 'await' so UI doesn't hang ---
-    try{
-      sendEmail({
-      email: req.user.email,
-      subject: 'Booking Confirmed - LNMIIT Bus Service',
-      message: `Dear ${req.user.name},
+    // --- FIX APPLIED: Added await and try/catch block ---
+    try {
+      await sendEmail({
+        email: req.user.email,
+        subject: 'Booking Confirmed - LNMIIT Bus Service',
+        message: `Dear ${req.user.name},
 
 We are pleased to confirm your seat booking with LNMIIT Bus Services.
 
@@ -192,18 +191,14 @@ Safe Travels!
 
 Best regards,
 LNMIIT Transport Department`,
-    }).catch(err => console.error("Booking confirmation email failed:", err.message));
-    // ------------------------------------------------
-
-    }
-    catch (error) {
+      });
+    } catch (error) {
       console.error("Booking confirmation email failed:", error.message);
-      // We intentionally catch the error so the booking is still successful 
-      // even if the email fails.
+      // We do NOT throw an error here, so the booking remains valid even if email fails
     }
+    // ----------------------------------------------------
 
-        res.status(201).json(booking);
-
+    res.status(201).json(booking);
   } else {
     res.status(400);
     throw new Error('Invalid booking data');
@@ -247,12 +242,12 @@ const cancelBooking = asyncHandler(async (req, res) => {
      throw new Error('Cannot cancel less than 30 minutes before departure.');
   }
 
-  // --- FIX: REMOVED 'await' here too ---
+  // --- FIX APPLIED: Added await and try/catch block ---
   try {
-    sendEmail({
-    email: req.user.email,
-    subject: 'Booking Cancelled - LNMIIT Bus Service',
-    message: `Dear ${req.user.name},
+    await sendEmail({
+      email: req.user.email,
+      subject: 'Booking Cancelled - LNMIIT Bus Service',
+      message: `Dear ${req.user.name},
 
 Your booking has been successfully cancelled as per your request.
 
@@ -268,17 +263,19 @@ We hope to serve you again soon.
 
 Best regards,
 LNMIIT Transport Department`,
-  }).catch(err => console.error("Cancellation email failed:", err.message));
-  // -------------------------------------
-
-  await booking.deleteOne();
-  processWaitingList(booking.bus);
-
+    });
   } catch (error) {
     console.error("Cancellation email failed:", error.message);
   }
+  // ----------------------------------------------------
 
   await booking.deleteOne();
+  
+  // Note: ideally you might want to await this too if you want to ensure the 
+  // waiting list user gets their email before the server process dies.
+  // For now, I'm keeping it as you had it to avoid slowing down cancellation response too much.
+  processWaitingList(booking.bus);
+
   res.json({ message: 'Booking cancelled successfully' });
 });
 
