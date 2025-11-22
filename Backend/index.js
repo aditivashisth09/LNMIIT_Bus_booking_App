@@ -1,4 +1,5 @@
-import dotenv from 'dotenv';
+import 'dotenv/config'; // Load env vars at the VERY TOP
+
 import express from 'express';
 import cors from 'cors';
 import connectDB from './config/db.js';
@@ -13,10 +14,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import conductorRoutes from './routes/conductorRoutes.js';
 
 // Import Scheduler
-import { initScheduler, scheduleDailyBuses } from './utils/dailyScheduler.js'; // --- NEW ---
-
-// Load env vars
-dotenv.config();
+import { initScheduler, scheduleDailyBuses } from './utils/dailyScheduler.js';
 
 // Connect to database
 connectDB();
@@ -42,17 +40,26 @@ mongoose.connection.once('open', async () => {
   try {
     const collection = mongoose.connection.collection('bookings');
     const indexes = await collection.indexes();
-    const badIndex = indexes.find(idx => idx.name === 'schedule_1_user_1');
+    
+    // --- FIX: Identify and drop the problematic index ---
+    const badIndexName = 'schedule_1_seatNumber_1'; // The exact name from your error
+    const badIndex = indexes.find(idx => idx.name === badIndexName);
     
     if (badIndex) {
+      console.log(`Found problematic index "${badIndexName}". Dropping it...`);
+      await collection.dropIndex(badIndexName);
+      console.log('Successfully dropped bad index.');
+    }
+    // ---------------------------------------------------
+
+    const existingBadIndex2 = indexes.find(idx => idx.name === 'schedule_1_user_1');
+    if (existingBadIndex2) {
       console.log('Found problematic index "schedule_1_user_1". Dropping it...');
       await collection.dropIndex('schedule_1_user_1');
       console.log('Successfully dropped bad index.');
     }
 
-    // --- NEW: Run Scheduler on Startup if needed ---
-    // This ensures if the server restarts, or is run for the first time, 
-    // the buses for TODAY are populated immediately.
+    // --- Run Scheduler on Startup if needed ---
     const Bus = mongoose.model('Bus');
     const busCount = await Bus.countDocuments({ route: { $ne: 'New Asset (Placeholder)' } });
     
@@ -68,11 +75,13 @@ mongoose.connection.once('open', async () => {
     console.log('Auto-fix/Init skipped:', error.message);
   }
 });
-// --- END FIX ---
 
 // Simple error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  if (res.headersSent) {
+    return next(err);
+  }
   res.status(500).send({ message: err.message || 'Something went wrong!' });
 });
 
