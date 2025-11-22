@@ -5,9 +5,9 @@ const sendEmail = async (options) => {
   const port = Number(process.env.EMAIL_HOST_PORT) || Number(process.env.EMAIL_PORT) || 587;
 
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com', // Fallback to gmail if missing
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com', 
     port: port,
-    // Fix: Automatically set secure to true if port is 465
+    // FIX: Automatically enable 'secure' (SSL) if using port 465
     secure: port === 465, 
     auth: {
       user: process.env.EMAIL_USER,
@@ -16,7 +16,7 @@ const sendEmail = async (options) => {
   });
 
   const message = {
-    from: `${process.env.EMAIL_USER}`, // Sender address
+    from: `"LNMIIT Transport" <${process.env.EMAIL_USER}>`, 
     to: options.email,
     subject: options.subject,
     text: options.message,
