@@ -1,29 +1,29 @@
 import nodemailer from 'nodemailer';
 
 const sendEmail = async (options) => {
-  console.log("📧 EMAIL DEBUG: Attempting to send via Port 587 (STARTTLS)...");
-  console.log(`   - User: ${process.env.EMAIL_USER}`);
+  const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
+  const port = Number(process.env.EMAIL_PORT) || 587;
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+
+  console.log(`📧 EMAIL SERVICE: Connecting to ${host}:${port}...`);
 
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,      // Change to 587
-    secure: false,  // MUST be false for port 587
+    host: host,
+    port: port,
+    secure: port === 465, // True for 465, False for 587
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: user,
+      pass: pass,
     },
-    // --- CRITICAL SETTINGS FOR CLOUD SERVERS ---
-    family: 4, // Force IPv4
-    tls: {
-        rejectUnauthorized: false, // Ignore certificate errors
-        ciphers: 'SSLv3'           // Use compatible cipher
-    },
-    // -------------------------------------------
-    connectionTimeout: 10000, // Fail fast (10s)
+    // Standard timeouts
+    connectionTimeout: 10000, 
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
 
   const message = {
-    from: `"LNMIIT Bus App" <${process.env.EMAIL_USER}>`,
+    from: `"LNMIIT Transport" <${user}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,
@@ -31,10 +31,11 @@ const sendEmail = async (options) => {
 
   try {
     const info = await transporter.sendMail(message);
-    console.log('✅ Message sent successfully:', info.messageId);
+    console.log('✅ Message sent successfully. ID:', info.messageId);
   } catch (error) {
-    console.error('❌ FATAL EMAIL ERROR:', error);
-    // We catch the error so the user's booking doesn't crash
+    console.error('❌ EMAIL FAILED:', error.message);
+    // Do NOT throw the error. This allows the booking to succeed 
+    // even if the email fails.
   }
 };
 
