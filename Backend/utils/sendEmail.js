@@ -8,20 +8,19 @@ const sendEmail = async (options) => {
 
   console.log(`📧 EMAIL SERVICE: Connecting to ${host}:${port}...`);
 
-  const transporter = nodemailer.createTransport({
-    host: host,
-    port: port,
-    secure: port === 465, // False for 587
-    auth: {
-      user: user,
-      pass: pass,
-    },
-    // --- NETWORK FIXES ---
-    family: 4, // <--- FORCE IPv4 (Crucial for Render)
-    // ---------------------
-    connectionTimeout: 10000, 
-    greetingTimeout: 10000,
-  });
+ const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 2525,
+  secure: false,  // must be false for 2525
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  family: 4,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+});
+
 
   const message = {
     from: `"LNMIIT Transport" <${user}>`,
