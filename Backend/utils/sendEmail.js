@@ -1,14 +1,10 @@
 import nodemailer from 'nodemailer';
 
 const sendEmail = async (options) => {
-  // Convert port to number to be safe
-  const port = Number(process.env.EMAIL_HOST_PORT) || Number(process.env.EMAIL_PORT) || 587;
-
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com', 
-    port: port,
-    // FIX: Automatically enable 'secure' (SSL) if using port 465
-    secure: port === 465, 
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    secure: false, // Set to 'true' if port is 465, otherwise 'false' (like for port 587)
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -16,17 +12,18 @@ const sendEmail = async (options) => {
   });
 
   const message = {
-    from: `"LNMIIT Transport" <${process.env.EMAIL_USER}>`, 
+    from: `${process.env.EMAIL_USER}`,
     to: options.email,
     subject: options.subject,
     text: options.message,
+    // html: "<b>Hello world?</b>", // You can use HTML formatting
   };
 
   try {
     const info = await transporter.sendMail(message);
-    console.log('Message sent: %s', info.messageId);
+    console.log('Message sent: %s', info.messageId); // Check your backend console for this log!
   } catch (error) {
-    console.error('Error sending email: ', error);
+    console.error('Error sending email: ', error); // Check your backend console for this log!
   }
 };
 
